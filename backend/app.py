@@ -17,6 +17,7 @@ from .security import Limiter, password_hash, check_password, token_hash, PERMIS
 from .geo import blocked_polygons, crosses_closure, distance
 from .circuit import CircuitBreaker
 from .drills import install_drills
+from .accessibility import CITIZEN_ROLES, needs_accessible
 from .profiles import ProfileUpdate, profile_record, shared_profiles
 from .vision_jobs import VisionJobs, install_vision, MAX_UPLOAD
 
@@ -91,7 +92,7 @@ def create_app(db_path=None,demo=None):
     application.state.routing_transport=None
     with store.lock,store.db:
         if demo:
-            for role in ('dispatcher','admin','responder','observer'):
+            for role in ('dispatcher','admin','responder','observer','priority_citizen'):
                 if not store.db.execute('SELECT id FROM users WHERE username=?',('demo-'+role,)).fetchone():
                     store.db.execute('INSERT INTO users VALUES(?,?,?,?,?)',(uid(),'demo-'+role,role,password_hash('demo'),'t1' if role=='responder' else None))
         else:
@@ -156,6 +157,7 @@ def create_app(db_path=None,demo=None):
             u=dict(r);u.pop('password',None)
             role=store.get('role',u['role'])
             u['permissions']=role['permissions'] if role else []
+            u['accessible_required']=store.accessible_required(u['id'])
             return u
 
     def require(request,permission=None):
@@ -171,7 +173,7 @@ def create_app(db_path=None,demo=None):
             store.db.execute('DELETE FROM sessions WHERE expires<?',(time.time(),))
             store.db.execute('INSERT INTO sessions VALUES(?,?,?)',(token_hash(token),user['id'],time.time()+8*3600))
         if cookie_session:response.set_cookie('dm_session',token,httponly=True,samesite='strict',secure=os.getenv('SECURE_COOKIES')=='1',max_age=28800)
-        if cookie_session and user['role']=='citizen':
+        if cookie_session and user['role'] in CITIZEN_ROLES:
             response.set_cookie('dm_citizen',token,httponly=True,samesite='strict',secure=os.getenv('SECURE_COOKIES')=='1',max_age=28800)
         # Bearer token lets CLI/load tests use the same authentication scheme.
         return {'token':token,'user':{k:v for k,v in user.items() if k!='password'},'demo':demo}
@@ -183,7 +185,7 @@ def create_app(db_path=None,demo=None):
     def guest(request:Request,response:Response):
         throttle('guest:'+request.client.host,40)
         previous=user_from({}, {'dm_session':request.cookies.get('dm_citizen','')})
-        if previous and previous['role']=='citizen':return issue(previous,response)
+        if previous and previous['role'] in CITIZEN_ROLES:return issue(previous,response)
         with store.lock,store.db:
             u={'id':uid(),'username':'guest-'+uid()[:8],'role':'citizen','team_id':None}
             store.db.execute('INSERT INTO users VALUES(?,?,?,NULL,NULL)',(u['id'],u['username'],u['role']))
@@ -214,8 +216,20 @@ def create_app(db_path=None,demo=None):
 
     def citizen(request):
         u = require(request)
-        if u['role'] != 'citizen':raise HTTPException(403, 'citizen_profile_only')
+        if u['role'] not in CITIZEN_ROLES:raise HTTPException(403, 'citizen_profile_only')
         return u
+
+    @application.put('/api/me/priority')
+    def priority_mode(body:Switch, request:Request):
+        u=citizen(request)
+        with store.lock,store.db:
+            profile=(store.get('profile',u['id']) or {}).get('profile') or {}
+            if not body.enabled and needs_accessible(profile):
+                raise HTTPException(409,'profile_requires_accessible_route')
+            role='priority_citizen' if body.enabled else 'citizen'
+            store.db.execute('UPDATE users SET role=? WHERE id=?',(role,u['id']))
+            store.audit(u['id'],'citizen.priority_enabled' if body.enabled else 'citizen.priority_disabled',u['id'])
+        return require(request)
 
     @application.get('/api/me/profile')
     def get_profile(request:Request):
@@ -229,6 +243,9 @@ def create_app(db_path=None,demo=None):
             current = profile_record(store, u['id'])
             if body.version != current['version']:raise HTTPException(409, 'profile_changed')
             profile = body.profile.model_dump()
+            if needs_accessible(profile) and u['role']=='citizen':
+                store.db.execute("UPDATE users SET role='priority_citizen' WHERE id=?",(u['id'],))
+                store.audit(u['id'],'citizen.priority_enabled',u['id'])
             store.put('profile', {'id': u['id'], 'profile': profile, 'version': current['version']+1, 'updated_at': store.clock()})
             store.audit(u['id'], 'profile.saved', u['id'])
             if profile['share_on_sos'] != current['profile']['share_on_sos']:
@@ -285,9 +302,10 @@ def create_app(db_path=None,demo=None):
     async def routes(request:Request,lat:float,lng:float,mode:Literal['auto','local']='auto'):
         started=time.monotonic()
         u=require(request);throttle('route:'+u['id'],30)
+        accessible_only=u['accessible_required']
         if not (-90<=lat<=90 and -180<=lng<=180):raise HTTPException(422,'invalid_coordinates')
         with store.lock:
-            try:choices=store.local_routes(lat,lng)
+            try:choices=store.local_routes(lat,lng,accessible_only=accessible_only)
             except ValueError as exc:raise HTTPException(422,str(exc))
             cfg=store.config();polys=blocked_polygons(store.map['nodes'],store.objects('road'));revision=store.revision
         breaker=application.state.routing_circuit
@@ -296,7 +314,8 @@ def create_app(db_path=None,demo=None):
         configured=bool(os.getenv('ORS_API_KEY')) or scenario!='off'
         reason='local_selected' if mode=='local' else 'external_not_configured'
         attempted=False
-        if choices and mode=='auto' and configured:
+        if accessible_only:reason='accessible_local_only'
+        if choices and mode=='auto' and configured and not accessible_only:
             permit,reason=breaker.acquire()
             if permit:
                 attempted=True;success=None
@@ -333,14 +352,15 @@ def create_app(db_path=None,demo=None):
                 except httpx.HTTPError:success=False;reason='provider_network_error'
                 except (ValueError,KeyError,IndexError,TypeError,OverflowError):success=False;reason='invalid_provider_response'
                 finally:breaker.finish(permit,success,reason)
-        if cfg['provider_down'] and mode=='auto':reason='provider_unavailable'
+        if cfg['provider_down'] and mode=='auto' and not accessible_only:reason='provider_unavailable'
         # Never return a cached external path through a newly closed road/full shelter.
         with store.lock:
             if store.revision!=revision:
-                choices=store.local_routes(lat,lng);reason='state_changed_local_recalculation'
-        if not choices:reason='no_eligible_route'
-        service_mode='online' if reason is None else 'local' if reason in ('local_selected','external_not_configured','no_eligible_route') else 'fallback'
-        routing={'mode':service_mode,'reason':reason,'circuit':breaker.snapshot(),
+                accessible_only=store.accessible_required(u['id'])
+                choices=store.local_routes(lat,lng,accessible_only=accessible_only);reason='state_changed_local_recalculation'
+        if not choices:reason='no_accessible_route' if accessible_only else 'no_eligible_route'
+        service_mode='online' if reason is None else 'local' if reason in ('local_selected','external_not_configured','no_eligible_route','accessible_local_only','no_accessible_route') else 'fallback'
+        routing={'accessible_required':accessible_only,'mode':service_mode,'reason':reason,'circuit':breaker.snapshot(),
                  'deadline_ms':round(application.state.provider_timeout*1000),'elapsed_ms':round((time.monotonic()-started)*1000),
                  'external_attempted':attempted,'demo_provider':scenario!='off'}
         return {'routes':choices,'fallback_reason':reason,'routing':routing,

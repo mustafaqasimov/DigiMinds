@@ -7,6 +7,7 @@ from pathlib import Path
 from .geo import distance, zone_for, shortest_path
 from .seed import seed_map
 from .security import PERMISSIONS
+from .accessibility import accessible, needs_accessible
 
 
 def uid(): return uuid.uuid4().hex
@@ -35,12 +36,28 @@ class Store:
           CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY AUTOINCREMENT,actor TEXT,action TEXT,target TEXT,created REAL);
         ''')
         with self.lock,self.db:
+            columns={r['name'] for r in self.db.execute('PRAGMA table_info(reports)')}
+            if 'priority' not in columns:
+                self.db.execute('ALTER TABLE reports ADD COLUMN priority INTEGER NOT NULL DEFAULT 2')
+            # Add the new role without replacing existing roles or their permissions.
+            if not self.get('role','priority_citizen'):
+                self.put('role',{'id':'priority_citizen','permissions':PERMISSIONS['priority_citizen']})
             if not self.objects('shelter'):
                 for s in self.map['shelters']: self.put('shelter',{**s,'source':'simulation','observed_at':clock(),'coverage':'full'})
                 for t in self.map['teams']: self.put('team',t)
                 for r in self.map['roads']: self.put('road',r)
                 for name,permissions in PERMISSIONS.items(): self.put('role',{'id':name,'permissions':permissions})
                 self.put('config',{'id':'main','window_seconds':300,'radius_m':500,'sos_threshold':4,'reroute_percent':90,'critical_percent':95,'incident_radius_m':180,'provider_down':False,'websocket_down':False})
+
+            # Upgrade only exact built-in simulation records; never guess metadata
+            # for custom/unknown roads, or overwrite closures and occupancy.
+            keys=('accessibility_verified','step_free','ramp_access','obstacle_free','wheelchair_accessible','medical_vehicle_accessible','accessibility_source')
+            for kind, seeds, identity in (('road',self.map['roads'],('a','b','meters','name')),('shelter',self.map['shelters'],('node','name'))):
+                for seed in seeds:
+                    item=self.get(kind,seed['id'])
+                    if item and not any(k in item for k in keys) and all(item.get(k)==seed[k] for k in identity):
+                        item.update({k:seed[k] for k in keys})
+                        self.put(kind,item)
 
     def objects(self, kind):
         return [json.loads(r[0]) for r in self.db.execute('SELECT data FROM objects WHERE kind=? ORDER BY id',(kind,))]
@@ -57,6 +74,11 @@ class Store:
         self.revision+=1
 
     def config(self): return self.get('config','main')
+
+    def accessible_required(self, user_id):
+        user=self.db.execute('SELECT role FROM users WHERE id=?',(user_id,)).fetchone()
+        record=self.get('profile',user_id) or {}
+        return bool((user and user['role']=='priority_citizen') or needs_accessible(record.get('profile') or {}))
 
     def report(self, user_id, event_key, type, lat, lng, incident_id=None, client_time=None):
         with self.lock,self.db:
@@ -76,13 +98,20 @@ class Store:
             if match:
                 iid=match['id']
                 old=self.db.execute('SELECT * FROM reports WHERE user_id=? AND incident_id=?',(user_id,iid)).fetchone()
-                if old:return dict(old),False
+                if old:
+                    # A new SOS from the same reporter may raise an existing active
+                    # incident to P1, without counting the reporter a second time.
+                    if old['priority']!=1 and old['status']=='active' and self.accessible_required(user_id):
+                        self.db.execute('UPDATE reports SET priority=1 WHERE id=?',(old['id'],))
+                        self.audit(user_id,'sos.priority_raised',iid);self.evaluate()
+                        return {**dict(old),'priority':1},False
+                    return dict(old),False
                 self.db.execute('UPDATE incidents SET updated=? WHERE id=?',(now,iid))
             else:
                 iid=uid()
                 self.db.execute('INSERT INTO incidents VALUES(?,?,?,?,?,?,?,?)',(iid,type,lat,lng,zone_for(lat,lng),'open',now,now))
-            r={'id':uid(),'user_id':user_id,'event_key':event_key,'incident_id':iid,'type':type,'lat':lat,'lng':lng,'zone':zone_for(lat,lng),'created':now,'status':'active','client_time':client_time}
-            self.db.execute('INSERT INTO reports VALUES(:id,:user_id,:event_key,:incident_id,:type,:lat,:lng,:zone,:created,:status,:client_time)',r)
+            r={'id':uid(),'user_id':user_id,'event_key':event_key,'incident_id':iid,'type':type,'lat':lat,'lng':lng,'zone':zone_for(lat,lng),'created':now,'status':'active','client_time':client_time,'priority':1 if self.accessible_required(user_id) else 2}
+            self.db.execute('INSERT INTO reports (id,user_id,event_key,incident_id,type,lat,lng,zone,created,status,client_time,priority) VALUES(:id,:user_id,:event_key,:incident_id,:type,:lat,:lng,:zone,:created,:status,:client_time,:priority)',r)
             self.audit(user_id,'sos.created',iid)
             self.evaluate()
             return r,True
@@ -102,6 +131,10 @@ class Store:
         now=self.clock(); cfg=self.config()
         reports=[dict(r) for r in self.db.execute('SELECT * FROM reports WHERE created>=? AND created<=? ORDER BY created,id',(now-cfg['window_seconds'],now))]
         triggers=[]; zone_members={}
+        # A single active Priority 1 report warrants an immediate operator alert,
+        # independent of the crowd threshold or five-minute aggregation window.
+        for r in self.db.execute("SELECT r.* FROM reports r JOIN incidents i ON i.id=r.incident_id WHERE r.priority=1 AND r.status='active' AND i.status!='resolved'"):
+            triggers.append(('priority:'+r['id'],'sos',r['incident_id'],{'rule':'priority','priority':1,'count':1,'report_ids':[r['id']],'types':[r['type']]}))
         def primary_incident(members):
             counts={}
             for member in members:
@@ -128,7 +161,7 @@ class Store:
         for key,kind,target,evidence in triggers:
             active.add(key)
             a=dict(existing[key]) if key in existing else {'id':uid(),'key':key,'kind':kind,'target':target,'status':'open','created':now}
-            a.update(evidence=evidence,condition_active=True)
+            a.update(evidence=evidence,condition_active=True,priority=evidence.get('priority',2))
             # Once dispatched, preserve the assignment target. Before dispatch,
             # follow the incident with the most reports in the rolling window.
             if a['status']=='open':a['target']=target
@@ -145,12 +178,12 @@ class Store:
             shelters=[]
             for s in self.objects('shelter'):
                 shelters.append({**s,'lat':lookup[s['node']]['lat'],'lng':lookup[s['node']]['lng'],'percent':round(s['occupancy']/s['capacity']*100,2),'stale':self.clock()-s['observed_at']>300})
-            incidents=[dict(r) for r in self.db.execute("SELECT i.*,COUNT(r.id) AS count,SUM(CASE WHEN r.status='active' THEN 1 ELSE 0 END) AS active_count FROM incidents i LEFT JOIN reports r ON r.incident_id=i.id GROUP BY i.id ORDER BY i.created DESC")]
+            incidents=[dict(r) for r in self.db.execute("SELECT i.*,COUNT(r.id) AS count,SUM(CASE WHEN r.status='active' THEN 1 ELSE 0 END) AS active_count,MIN(CASE WHEN r.status='active' THEN r.priority ELSE 2 END) AS priority FROM incidents i LEFT JOIN reports r ON r.incident_id=i.id GROUP BY i.id ORDER BY priority ASC,i.created DESC")]
             cfg=self.config()
             result={'revision':self.revision,'server_time':self.clock(),'map':{k:v for k,v in self.map.items() if k not in ('shelters','teams','roads')},'roads':self.objects('road'),'shelters':shelters,'incidents':incidents,'config':{k:v for k,v in cfg.items() if k not in ('provider_down','websocket_down')},'dataset':'SIMULATION'}
             permissions=user.get('permissions',[]) if user else []
             if 'dashboard:read' in permissions:
-                result.update(teams=self.objects('team'),alerts=self.objects('alert'),reports=[dict(r) for r in self.db.execute('SELECT id,incident_id,type,lat,lng,zone,created,status FROM reports ORDER BY created DESC LIMIT 200')],failures={'provider':cfg['provider_down'],'websocket':cfg['websocket_down']})
+                result.update(teams=self.objects('team'),alerts=self.objects('alert'),reports=[dict(r) for r in self.db.execute('SELECT id,incident_id,type,lat,lng,zone,created,status,priority FROM reports ORDER BY created DESC LIMIT 200')],failures={'provider':cfg['provider_down'],'websocket':cfg['websocket_down']})
             elif 'assignment:read' in permissions:
                 result['teams']=[t for t in self.objects('team') if t['id']==user.get('team_id')]
                 assigned={t.get('incident_id') for t in result['teams']}
@@ -160,21 +193,25 @@ class Store:
                 result['incidents']=[{k:v for k,v in x.items() if k in ('id','type','zone','count','active_count','status')} for x in incidents]
             if user:
                 result['viewer']=user
-                result['mine']=[dict(r) for r in self.db.execute('SELECT id,incident_id,type,status,created FROM reports WHERE user_id=? ORDER BY created DESC',(user['id'],))]
+                result['mine']=[dict(r) for r in self.db.execute('SELECT id,incident_id,type,status,created,priority FROM reports WHERE user_id=? ORDER BY created DESC',(user['id'],))]
             result['stats']={'active_sos':sum(i['active_count'] or 0 for i in incidents),'incidents':len([i for i in incidents if i['status']!='resolved']),'open_shelters':sum(s['status']=='open' for s in shelters),'occupancy':sum(s['occupancy'] for s in shelters if s['status']=='open')}
             return result
 
-    def local_routes(self, lat,lng):
+    def local_routes(self, lat,lng, accessible_only=False):
         nodes=self.map['nodes']; roads=self.objects('road');cfg=self.config()
+        if accessible_only:roads=[r for r in roads if accessible(r)]
         start=min(nodes,key=lambda n:distance((lat,lng),(n['lat'],n['lng'])))
         snap=distance((lat,lng),(start['lat'],start['lng']))
         if snap>250: raise ValueError('outside_demo_area')
+        # Never assume the unsurveyed connector to the nearest graph node is accessible.
+        if accessible_only and snap>2:return []
         lookup={n['id']:n for n in nodes};routes=[]
         for s in self.objects('shelter'):
+            if accessible_only and not accessible(s):continue
             if s['status']!='open' or s['occupancy']/s['capacity']*100>=cfg['reroute_percent']: continue
             path=shortest_path(nodes,roads,start['id'],s['node'])
             if path:
-                routes.append({**path,'shelter_id':s['id'],'shelter_name':s['name'],'source':'local_graph','minutes':round(path['meters']/75,1),'snap_meters':round(snap),'geometry':[[lookup[n]['lng'],lookup[n]['lat']] for n in path['nodes']],'observed_at':s['observed_at'],'stale':self.clock()-s['observed_at']>300})
+                routes.append({**path,'shelter_id':s['id'],'shelter_name':s['name'],'source':'local_graph','accessible':accessible_only,'accessibility_scope':'simulation' if accessible_only else None,'minutes':round(path['meters']/75,1),'snap_meters':round(snap),'geometry':[[lookup[n]['lng'],lookup[n]['lat']] for n in path['nodes']],'observed_at':s['observed_at'],'stale':self.clock()-s['observed_at']>300})
         return sorted(routes,key=lambda r:r['meters'])
 
     def execute(self,alert_id,action,actor):

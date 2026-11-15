@@ -1,7 +1,7 @@
 import {localRoutes} from './offline.js';
 
 function fallback(getState,origin,reason){
- try{return {routes:localRoutes(getState(),origin),routing:{mode:'fallback',reason,source:'browser_offline'},fallback_reason:reason};}
+ try{const state=getState(),required=!!(state.viewer?.accessible_required||state.viewer?.role==='priority_citizen'),routes=localRoutes(state,origin);return {routes,routing:{mode:'fallback',reason,source:'browser_offline',accessible_required:required},fallback_reason:reason,no_route:!routes.length};}
  catch(error){return {routes:[],routing:{mode:'fallback',reason,source:'browser_offline'},fallback_reason:reason,local_error:error.message==='outside_demo_area'?'outside_demo_area':'local_data_unavailable',no_route:true};}
 }
 // The deadline covers both fetch and JSON parsing. A rejected fallback never leaks.

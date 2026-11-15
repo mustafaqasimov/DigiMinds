@@ -7,6 +7,7 @@ from threading import Lock
 
 PERMISSIONS = {
     'citizen': ['sos:create','sos:own','route:read'],
+    'priority_citizen': ['sos:create','sos:own','route:read'],
     'dispatcher': ['dashboard:read','incident:act','shelter:write','road:write','demo:write'],
     'responder': ['assignment:read','team:own'],
     'observer': ['dashboard:read'],

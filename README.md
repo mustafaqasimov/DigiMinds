@@ -62,11 +62,17 @@ və səs, qəbul göstəriciləri və ümumi dayandırma. [Təqdimat təlimatı 
 
 **Yeni subtask — xarici xəritə/marşrut API nasazlığı:** 503 və uzun cavabda avtomatik lokal Dijkstra, 4,5 saniyəlik provayder limiti, closed/open/half-open circuit breaker, 4 paralel çağırış limiti və üç dildə daimi ehtiyat rejimi bildirişi. Xəritə tile-ları yüklənməyəndə lokal Bakı xəritəsi açılır. Dispetçerin **Challenge laboratoriyası** bölməsində **HTTP 503 yarat**, **6 saniyə gecikdir**, **Servisi bərpa et** düymələri ilə yoxlayın. [Araşdırma, memarlıq və jüri nümayişi](docs/routing-resilience.md).
 
+## Prioritet SOS və əlçatan marşrut
+
+Vətəndaş xəritəsində sağ yuxarı hesab düyməsi → **Prioritet SOS rolunu aktivləşdir**. Bu rolun SOS-u dərhal **Kritik · Priority 1** kimi dispetçerə göstərilir. Yalnız panduslu, maneəsiz, əlil arabası və tibbi nəqliyyat keçidi atributları olan demo yollar seçilir; uyğun yol yoxdursa adi piyada marşrutu göstərilmir. Demo hesab: `demo-priority_citizen` / `demo`.
+
+Server və oflayn brauzer eyni məhdudiyyətləri tətbiq edir. Əlçatanlıq məlumatları **simulyasiyadır**, real küçələr üzrə təsdiq deyil. [İstifadə, məlumat müqaviləsi və testlər](docs/priority-accessibility.md).
+
 ## Vətəndaş təhlükəsizlik profili
 
 Vətəndaş panelində **Təhlükəsizlik profilim** düyməsi və ya `/#profile` açın. Yaş, hərəkət/əlçatanlıq ehtiyacları, nəqliyyat, ailə və təcili əlaqəni ayrı kartlarda daxil edib saxlayın. Şəxsi hazırlıq siyahısı bu seçimlərə uyğun dəyişir. Paylaşma standart olaraq bağlıdır; razılıq veriləndə yalnız aktiv SOS-a baxan səlahiyyətli operator və təyin edilmiş briqada yardım profilini aça bilir.
 
-Profil cari 8 saatlıq guest sessiyasına bağlıdır; sessiya itdikdə hesab bərpası yoxdur. Hələlik sınaq məlumatından istifadə edin. mygov inteqrasiyası və təsdiqlənmiş əlçatan marşrut əlavə edilməyib.
+Profil cari 8 saatlıq guest sessiyasına bağlıdır; sessiya itdikdə hesab bərpası yoxdur. Hələlik sınaq məlumatından istifadə edin. mygov inteqrasiyası və real küçələr üzrə təsdiqlənmiş əlçatanlıq məlumatları əlavə edilməyib; əlçatan marşrut demo qrafında işləyir.
 
 Dizayn mənbələri, API, testlər və məhdudiyyətlər: [citizen-profile.md](docs/citizen-profile.md).
 

@@ -56,3 +56,22 @@ test('fallback remains visible with the drawer closed in all three languages',()
   assert.deepEqual(Object.keys(resilienceMessages[locale]).sort(),Object.keys(resilienceMessages.en).sort());
  }
 });
+test('priority citizen has a visible role control and accessible no-route message',()=>{
+ const c=context([], {user:{role:'priority_citizen',accessible_required:true}});
+ c.t=k=>resilienceMessages.en[k]||uiTranslations.en[k]||translations.en[k]||k;
+ c.ui.drawer=false;c.ui.dialog='login';
+ const html=renderLayout(c);
+ assert.ok(html.includes('data-priority-mode="off"'));
+ assert.ok(html.includes('No verified accessible route'));
+ assert.ok(html.includes('Accessible routes only'));
+ assert.ok(html.includes('data-action="profile"'));
+ assert.ok(!html.includes('data-action="edit-roads"'));
+});
+test('Priority 1 incident precedes a larger ordinary incident',()=>{
+ const c=context(['dashboard:read'],{view:'dispatcher'});
+ c.t=k=>resilienceMessages.en[k]||uiTranslations.en[k]||translations.en[k]||k;
+ c.state.incidents=[{id:'ordinary',type:'fire',zone:'west',count:10,active_count:10,priority:2},{id:'priority',type:'medical',zone:'east',count:1,active_count:1,priority:1}];
+ const html=renderLayout(c);
+ assert.ok(html.indexOf('data-id="priority"')<html.indexOf('data-id="ordinary"'));
+ assert.ok(html.includes('Critical · Priority 1'));
+});

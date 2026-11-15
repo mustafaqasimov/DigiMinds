@@ -27,6 +27,18 @@ def seed_map():
         {'id':'s5','name':'Ehtiyat Təhlükəsizlik Sahəsi','node':'n5_7','capacity':500,'occupancy':0,'status':'standby','kind':'park','area_m2':800},
         {'id':'s6','name':'Qərb Ehtiyat Sahəsi','node':'n1_1','capacity':300,'occupancy':0,'status':'standby','kind':'shelter','area_m2':400},
     ]
+    # Explicit synthetic accessibility survey: selected lanes and destinations.
+    # Existing databases are NOT retroactively marked verified on upgrade.
+    for edge in edges:
+        row,col=map(int,edge['a'][1:].split('_'))
+        rr,cc=map(int,edge['b'][1:].split('_'))
+        verified=(row==rr and row in (2,3,6)) or (col==cc and col in (3,4,5))
+        edge.update({key:verified for key in ('accessibility_verified','step_free','ramp_access','obstacle_free','wheelchair_accessible','medical_vehicle_accessible')})
+        edge['accessibility_source']='simulation'
+    for shelter in shelters:
+        verified=shelter['id'] in ('s1','s2')
+        shelter.update({key:verified for key in ('accessibility_verified','step_free','ramp_access','obstacle_free','wheelchair_accessible','medical_vehicle_accessible')})
+        shelter['accessibility_source']='simulation'
     teams=[
         {'id':'t1','name':'Atlas 01','skills':['fire','collapse'],'node':'n4_3','status':'available','incident_id':None},
         {'id':'t2','name':'Med 02','skills':['medical'],'node':'n2_5','status':'available','incident_id':None},
