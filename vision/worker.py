@@ -83,7 +83,7 @@ def publish_measurement(client, args, record):
         record['publish_error'] = type(exc).__name__
 
 
-def save_preview(result, polygon, record, filename):
+def render_preview(result, polygon, record):
     import cv2
     import numpy as np
     frame = result.orig_img.copy()
@@ -99,9 +99,14 @@ def save_preview(result, polygon, record, filename):
     banner = np.full((68, frame.shape[1], 3), (57, 44, 24), dtype=np.uint8)
     cv2.putText(banner, f"{record['model']}  |  People in view/ROI: {record['count']}", (12, 26), cv2.FONT_HERSHEY_SIMPLEX, .56, (255, 255, 255), 1, cv2.LINE_AA)
     cv2.putText(banner, f"Density: {density}  |  {record['coverage']} view", (12, 51), cv2.FONT_HERSHEY_SIMPLEX, .46, (220, 225, 230), 1, cv2.LINE_AA)
+    return np.concatenate([banner, frame])
+
+
+def save_preview(result, polygon, record, filename):
+    import cv2
     path = Path(filename)
     path.parent.mkdir(parents=True, exist_ok=True)
-    if not cv2.imwrite(str(path), np.concatenate([banner, frame])):
+    if not cv2.imwrite(str(path), render_preview(result, polygon, record)):
         raise OSError('Could not save preview')
 
 

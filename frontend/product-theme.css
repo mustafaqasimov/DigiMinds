@@ -33,7 +33,7 @@
 .dm-nav a:hover { background: #ffffff14; color: white; }
 .dm-nav a[aria-current="page"] { background: white; color: var(--dm-navy); font-weight: 700; }
 .dm-header a:focus-visible { outline: 3px solid #ffc691; outline-offset: 3px; }
-@media (max-width: 700px) {
+@media (max-width: 900px) {
   .dm-header { flex-wrap: wrap; gap: 12px; padding: 14px 18px 16px; }
   .dm-brand { font-size: 18px; min-height: 34px; }
   .dm-nav { width: 100%; box-sizing: border-box; }

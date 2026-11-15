@@ -79,6 +79,10 @@ Offline ilk açılışdan sonra və HTTPS/localhost üzərində işləyir. Brauz
 
 ## YOLO
 
+**Saytdan video yükləmək:** Windows-da **`YOLO_BASLAT.cmd`** açın. İlk dəfə YOLO və video kodlayıcı paketləri, sonra model yüklənir. Saytda **YOLO analiz** bölməsinə keçin (`/vision.html`), təlim hesabına daxil olun, videonu seçin və **Analizi başlat** düyməsini basın. Gediş, insan sayı və çərçivəli nəticə videosu həmin səhifədə görünür; MP4 və JSON hesabatı endirmək olar. [İstifadə, limitlər və yoxlama](docs/web-yolo.md).
+
+Video limiti **100 MB / 60 saniyə / Full HD / 60 FPS**. Hər serverdə eyni anda bir analiz işləyir. Video ayrıca prosesdə emal olunur; xəritə və SOS API-si işləməyə davam edir. Nəticə yalnız yükləyən hesaba açılır, məntəqələrin doluluğunu dəyişmir. Real sahə məlum olmadığından veb analiz nəfər/m² vermir.
+
 ```bash
 python -m pip install -r requirements-vision.txt
 python -m vision.worker --source path/to/video.mp4 --save-preview data/yolo-preview.jpg

@@ -1,4 +1,4 @@
-.venv/
+.venv
 __pycache__/
 .pytest_cache/
 data/*.db*
@@ -8,3 +8,4 @@ test-results/
 *.pt
 *.mp4
 *.avi
+data/vision-jobs/

@@ -1,2 +1,3 @@
 -r requirements.txt
 ultralytics==8.4.213
+imageio-ffmpeg==0.8.1

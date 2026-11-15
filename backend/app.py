@@ -18,6 +18,7 @@ from .geo import blocked_polygons, crosses_closure, distance
 from .circuit import CircuitBreaker
 from .drills import install_drills
 from .profiles import ProfileUpdate, profile_record, shared_profiles
+from .vision_jobs import VisionJobs, install_vision, MAX_UPLOAD
 
 ROOT=Path(__file__).resolve().parent.parent
 
@@ -75,7 +76,15 @@ def create_app(db_path=None,demo=None):
     demo=(os.getenv('DEMO_MODE','1')=='1') if demo is None else demo
     store=Store(db_path or os.getenv('DATABASE_PATH',str(ROOT/'data/crisis.db')))
     limiter=Limiter()
-    application=FastAPI(title='DigiMinds · Urban Crisis Engine',version='0.1.0')
+    vision_jobs=VisionJobs(ROOT,Path(db_path or os.getenv('DATABASE_PATH',str(ROOT/'data/crisis.db'))).resolve().parent/'vision-jobs')
+    @contextlib.asynccontextmanager
+    async def lifespan(application):
+        try:
+            yield
+        finally:
+            vision_jobs.close()
+    application=FastAPI(title='DigiMinds · Urban Crisis Engine',version='0.1.0',lifespan=lifespan)
+    application.state.vision_jobs=vision_jobs
     application.state.store=store;application.state.limiter=limiter
     application.state.routing_circuit=CircuitBreaker()
     application.state.provider_timeout=4.5
@@ -113,19 +122,23 @@ def create_app(db_path=None,demo=None):
             except ValueError:
                 return Response('Invalid content length',400)
             if declared<0:return Response('Invalid content length',400)
-            if declared>65536:return Response('Body too large',413)
+            video_upload=request.method=='POST' and request.url.path=='/api/vision/jobs'
+            body_limit=MAX_UPLOAD if video_upload else 65536
+            if declared>body_limit:return Response('Body too large',413)
             # Also enforce the bound for chunked requests without Content-Length.
-            chunks=[];received=0
-            async for chunk in request.stream():
-                received+=len(chunk)
-                if received>65536:return Response('Body too large',413)
-                chunks.append(chunk)
-            request._body=b''.join(chunks)
+            # Video route authenticates first and streams to disk with its own byte cap.
+            if not video_upload:
+                chunks=[];received=0
+                async for chunk in request.stream():
+                    received+=len(chunk)
+                    if received>65536:return Response('Body too large',413)
+                    chunks.append(chunk)
+                request._body=b''.join(chunks)
         result=await call_next(request)
         result.headers['X-Content-Type-Options']='nosniff'
         result.headers['Referrer-Policy']='strict-origin-when-cross-origin'
         result.headers['X-Frame-Options']='DENY'
-        result.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org; connect-src 'self' ws: wss:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
+        result.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org; media-src 'self' blob:; connect-src 'self' ws: wss:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
         if request.url.path.startswith('/api'):result.headers['Cache-Control']='no-store'
         elif request.url.path=='/' or request.url.path.endswith(('.html','.js','.css')):result.headers['Cache-Control']='no-cache'
         return result
@@ -462,6 +475,7 @@ def create_app(db_path=None,demo=None):
     def index():return FileResponse(ROOT/'frontend/index.html')
 
     install_drills(application,store,require,user_from,origin_ok,throttle,demo)
+    install_vision(application,vision_jobs,require,throttle,demo)
     application.mount('/',StaticFiles(directory=ROOT/'frontend',html=True),name='frontend')
     return application
 
