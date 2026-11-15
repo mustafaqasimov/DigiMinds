@@ -59,7 +59,7 @@ test('fallback remains visible with the drawer closed in all three languages',()
 test('mass gatherings: dispatcher forecast, reserve action and citizen nearby warning',async()=>{
  const {eventMessages}=await import('../frontend/events-i18n.js');
  const words={...translations.en,...uiTranslations.en,...eventMessages.en};
- const ev={id:'ev1',name:'Cup <final>',kind:'football',node:'n6_4',lat:40.38,lng:49.842,attendance:12000,start:0,end:7200,phase:'live',presence:1,on_site:12000,seekers:720,worst:97,deficit:94,unplaced:0,reserve:{id:'s5',name:'Reserve',capacity:500,meters:600},
+ const ev={id:'ev1',name:'Cup <final>',kind:'football',node:'n6_4',lat:40.38,lng:49.842,attendance:12000,start:0,end:7200,phase:'live',presence:1,on_site:12000,seekers:720,worst:97,deficit:94,unplaced:0,reserve:{id:'s5',name:'Reserve',capacity:500,meters:600,direction:'E',absorbs:94},reserves:[{id:'s5',name:'Reserve',capacity:500,meters:600,direction:'E',absorbs:94}],uncovered:0,description:'League match with a fan zone',risks:['crush','medical'],risk:'high',
   shelters:[{id:'s2',name:'North Stadium',meters:296,incoming:561,current_percent:41,potential_percent:97.1,level:'reroute'}]};
  const d=context(['dashboard:read','incident:act','shelter:write'],{view:'dispatcher',t:k=>words[k]||k});
  d.state.events=[ev];d.ui.panel='events';
@@ -70,9 +70,13 @@ test('mass gatherings: dispatcher forecast, reserve action and citizen nearby wa
  d.ui.selected={kind:'event',id:'ev1'};html=renderLayout(d);
  assert.ok(html.includes('data-event-prepare="ev1"'));
  assert.ok(html.includes('97%') && html.includes('Rerouting stops'));
+ assert.ok(html.includes('nothing has happened'));
+ assert.ok(html.includes('League match with a fan zone') && html.includes('Crowd crush'));
+ assert.ok(html.includes('East of the venue, 600 m on foot. Capacity 500, will take 94 people.'));
+ assert.ok(html.includes('href="tel:112"') && html.includes('href="tel:103"'));
  const c=context([],{t:k=>words[k]||k,origin:{lat:40.379,lng:49.842}});c.state.events=[ev];
  html=renderLayout(c);
- assert.ok(html.includes('Mass gathering nearby'));
+ assert.ok(html.includes('Mass gathering nearby') && html.includes('href="tel:112"'));
  assert.ok(!html.includes('data-event-prepare'));
  c.origin={lat:40.365,lng:49.828};
  assert.ok(!renderLayout(c).includes('Mass gathering nearby'));

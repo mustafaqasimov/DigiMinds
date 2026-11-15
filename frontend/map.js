@@ -40,6 +40,8 @@ export function mountMap(c,{onLocation}){
   // Crowd footprint grows with the square root of attendance (12 000 people ≈ 330 m).
   L.circle([e.lat,e.lng],{radius:Math.sqrt(e.attendance)*3,color,weight:1.5,dashArray:e.phase==='upcoming'?'6 6':null,fillColor:color,fillOpacity:e.phase==='live'?.16:.07,interactive:false}).addTo(overlays);
   if(chosen)for(const r of e.shelters){const s=state.shelters.find(x=>x.id===r.id),p=s&&lookup[s.node];if(p)L.polyline([[e.lat,e.lng],pos(p)],{color:LEVEL_COLORS[r.level],weight:3,dashArray:'4 6',interactive:false}).bindTooltip(`+${r.incoming} · ${Math.round(r.potential_percent)}%`,{permanent:true,direction:'center',className:'event-flow-label'}).addTo(overlays);}
+  // Reserve zones the forecast asks to open for the selected event.
+  if(chosen)for(const r of e.reserves||[]){const s=state.shelters.find(x=>x.id===r.id),p=s&&lookup[s.node];if(p)L.circle(pos(p),{radius:140,color:'#7b5cc4',weight:2.5,dashArray:'8 6',fillColor:'#7b5cc4',fillOpacity:.12,interactive:false}).bindTooltip(`${t('reserveZone')}: ${r.name}`,{permanent:true,direction:'top',className:'event-flow-label'}).addTo(overlays);}
   pin('event',e.id,e,color,'ticket',e.name,(e.attendance>=1000?Math.round(e.attendance/1000)+'k':e.attendance)+'');
  }
  if(isCitizen){L.circleMarker([origin.lat,origin.lng],{radius:9,color:'white',weight:4,fillColor:'#316cdb',fillOpacity:1}).bindTooltip(t('currentLocation'),{direction:'bottom'}).addTo(overlays);}

@@ -1,6 +1,12 @@
 // Mass gathering forecast vocabulary.
 export const eventMessages = {
- az: {events:'Kütləvi tədbirlər',eventsShort:'Tədbirlər',layerEvents:'Kütləvi tədbirlər',eventDetail:'Kütləvi tədbir',noEvents:'Planlaşdırılmış tədbir yoxdur',
+ az: {eventAbout:'Tədbir nə ilə bağlıdır',eventDescription:'Təsvir: tədbir nə ilə bağlıdır',potentialShort:'Potensial risk',
+  potentialBanner:'Potensial risk proqnozu: hadisə baş verməyib',potentialBannerText:'Aşağıda bu tədbir zamanı hazırda baş verə biləcək hallar və təxliyə lazım olarsa toplaşma məntəqələrinin necə dolacağı göstərilir.',
+  possibleIncidents:'Baş verə biləcək hadisələr',risk_crush:'İzdiham və sıxılma',risk_exit_jam:'Çıxışlarda tıxac',risk_medical:'Tibbi hallar: huşunu itirmə, istivurma',risk_clash:'Azarkeşlər arasında qarşıdurma',risk_surge:'Səhnə önündə kütləvi itələnmə',risk_fire:'Yanğın: pirotexnika, köşklər',risk_lost_child:'İtkin uşaqlar',risk_traffic:'Nəqliyyat hərəkətinin dayanması',
+  riskLevel_high:'Yüksək risk',riskLevel_elevated:'Artmış risk',riskLevel_moderate:'Orta risk',
+  reserveTitle:'Ehtiyat zona harada ayrılmalıdır',reserveWhy:'Səbəb: yaxın məntəqələrdə {n} nəfərlik yer çatışmır (90% həddi aşılır).',reserveLine:'Tədbir yerindən {dir} istiqamətdə, piyada {m} m. Tutumu {cap} nəfər, {abs} nəfəri qəbul edəcək.',reserveNone:'Ehtiyat zona tələb olunmur: yaxın məntəqələr gözlənilən yükü qaldırır.',uncoveredWarn:'Ehtiyat zonalar da kifayət etmir: daha {n} nəfər üçün əlavə açıq sahə ayrılmalıdır.',prepareOne:'Ehtiyat zonanı aç: {name}',reserveZone:'Ehtiyat zona',
+  dir_N:'şimal',dir_NE:'şimal-şərq',dir_E:'şərq',dir_SE:'cənub-şərq',dir_S:'cənub',dir_SW:'cənub-qərb',dir_W:'qərb',dir_NW:'şimal-qərb',
+  hotline:'Qaynar xətt',hotlineCall:'Qaynar xəttə zəng et · 112',hotlineHint:'Təhlükə görsəniz, kimsə yaralanıbsa və ya izdihamda sıxılırsınızsa, dərhal zəng edin.',hotlineFire:'Yanğın',hotlinePolice:'Polis',hotlineMedical:'Təcili tibbi yardım',events:'Kütləvi tədbirlər',eventsShort:'Tədbirlər',layerEvents:'Kütləvi tədbirlər',eventDetail:'Kütləvi tədbir',noEvents:'Planlaşdırılmış tədbir yoxdur',
   kind_concert:'Konsert',kind_football:'Futbol matçı',kind_festival:'Festival',kind_rally:'Mitinq',kind_other:'Digər tədbir',
   phase_upcoming:'Gözlənilir',phase_arrival:'İştirakçılar gəlir',phase_live:'Davam edir',phase_departure:'Dağılır',phase_ended:'Bitib',
   attendance:'Gözlənilən iştirakçı',onSite:'Hazırda yerində',seekers:'Təxliyədə məntəqəyə gedəcək',potential:'Potensial doluluq',
@@ -10,7 +16,13 @@ export const eventMessages = {
   nearbyEvent:'Yaxınlıqda kütləvi tədbir',nearbyHint:'Təxliyə zamanı yaxın məntəqələr tez dola bilər',eventLoad:'Tədbirlər nəzərə alınmaqla potensial doluluq',
   addEvent:'Yeni tədbir əlavə et',eventName:'Tədbirin adı',eventKind:'Növü',eventPlace:'Yer',eventStart:'Başlama vaxtı',eventHours:'Müddət (saat)',create:'Əlavə et',deleteEvent:'Tədbiri sil',demoEvents:'Demo tədbirlərini yenilə',
   place_n6_4:'Şimal Stadionu ətrafı',place_n3_5:'Mərkəz Parkı meydanı',place_n1_6:'Sahil bulvarı',place_n4_2:'Qərb meydanı',place_n2_4:'Mərkəzi prospekt',place_n5_7:'Şərq sərgi sahəsi'},
- en: {events:'Mass gatherings',eventsShort:'Events',layerEvents:'Mass gatherings',eventDetail:'Mass gathering',noEvents:'No planned events',
+ en: {eventAbout:'What the event is about',eventDescription:'Description: what the event is about',potentialShort:'Potential risk',
+  potentialBanner:'Potential risk forecast: nothing has happened',potentialBannerText:'Below are situations that could happen during this event right now and how assembly points would fill if an evacuation were needed.',
+  possibleIncidents:'Incidents that could happen',risk_crush:'Crowd crush',risk_exit_jam:'Congestion at exits',risk_medical:'Medical cases: fainting, heat stroke',risk_clash:'Clashes between fans',risk_surge:'Crowd surge at the stage',risk_fire:'Fire: pyrotechnics, stalls',risk_lost_child:'Lost children',risk_traffic:'Traffic standstill',
+  riskLevel_high:'High risk',riskLevel_elevated:'Elevated risk',riskLevel_moderate:'Moderate risk',
+  reserveTitle:'Where to set up reserve zones',reserveWhy:'Reason: nearby shelters are short of {n} places (90% threshold exceeded).',reserveLine:'{dir} of the venue, {m} m on foot. Capacity {cap}, will take {abs} people.',reserveNone:'No reserve zone needed: nearby shelters can take the expected load.',uncoveredWarn:'Reserve zones are not enough: another open area is needed for {n} people.',prepareOne:'Open reserve zone: {name}',reserveZone:'Reserve zone',
+  dir_N:'North',dir_NE:'North-east',dir_E:'East',dir_SE:'South-east',dir_S:'South',dir_SW:'South-west',dir_W:'West',dir_NW:'North-west',
+  hotline:'Hotline',hotlineCall:'Call the hotline · 112',hotlineHint:'If you see danger, someone is injured or you are being crushed in the crowd, call immediately.',hotlineFire:'Fire',hotlinePolice:'Police',hotlineMedical:'Ambulance',events:'Mass gatherings',eventsShort:'Events',layerEvents:'Mass gatherings',eventDetail:'Mass gathering',noEvents:'No planned events',
   kind_concert:'Concert',kind_football:'Football match',kind_festival:'Festival',kind_rally:'Rally',kind_other:'Other event',
   phase_upcoming:'Upcoming',phase_arrival:'Crowd arriving',phase_live:'In progress',phase_departure:'Crowd leaving',phase_ended:'Ended',
   attendance:'Expected attendance',onSite:'On site now',seekers:'Would head to shelters',potential:'Potential occupancy',
@@ -20,7 +32,13 @@ export const eventMessages = {
   nearbyEvent:'Mass gathering nearby',nearbyHint:'Nearby shelters may fill quickly during an evacuation',eventLoad:'Potential occupancy including events',
   addEvent:'Add event',eventName:'Event name',eventKind:'Type',eventPlace:'Place',eventStart:'Start time',eventHours:'Duration (hours)',create:'Add',deleteEvent:'Delete event',demoEvents:'Reset demo events',
   place_n6_4:'Around North Stadium',place_n3_5:'Central Park square',place_n1_6:'Seaside boulevard',place_n4_2:'West square',place_n2_4:'Central avenue',place_n5_7:'East expo ground'},
- ru: {events:'Массовые мероприятия',eventsShort:'События',layerEvents:'Массовые мероприятия',eventDetail:'Массовое мероприятие',noEvents:'Нет запланированных мероприятий',
+ ru: {eventAbout:'О мероприятии',eventDescription:'Описание: чему посвящено мероприятие',potentialShort:'Потенциальный риск',
+  potentialBanner:'Прогноз потенциального риска: происшествия нет',potentialBannerText:'Ниже показаны ситуации, которые могут произойти во время этого мероприятия сейчас, и как заполнятся пункты сбора при эвакуации.',
+  possibleIncidents:'Возможные происшествия',risk_crush:'Давка в толпе',risk_exit_jam:'Заторы на выходах',risk_medical:'Медицинские случаи: обмороки, тепловой удар',risk_clash:'Столкновения болельщиков',risk_surge:'Напор толпы у сцены',risk_fire:'Пожар: пиротехника, киоски',risk_lost_child:'Потерявшиеся дети',risk_traffic:'Остановка транспорта',
+  riskLevel_high:'Высокий риск',riskLevel_elevated:'Повышенный риск',riskLevel_moderate:'Умеренный риск',
+  reserveTitle:'Где выделить резервные зоны',reserveWhy:'Причина: в ближайших пунктах не хватает {n} мест (превышен порог 90%).',reserveLine:'{dir} от места проведения, {m} м пешком. Вместимость {cap}, примет {abs} человек.',reserveNone:'Резервная зона не нужна: ближайшие пункты выдержат ожидаемую нагрузку.',uncoveredWarn:'Резервных зон недостаточно: нужна ещё открытая площадка для {n} человек.',prepareOne:'Открыть резервную зону: {name}',reserveZone:'Резервная зона',
+  dir_N:'К северу',dir_NE:'К северо-востоку',dir_E:'К востоку',dir_SE:'К юго-востоку',dir_S:'К югу',dir_SW:'К юго-западу',dir_W:'К западу',dir_NW:'К северо-западу',
+  hotline:'Горячая линия',hotlineCall:'Позвонить на горячую линию · 112',hotlineHint:'Если видите опасность, кто-то ранен или вас сдавило в толпе, звоните сразу.',hotlineFire:'Пожарная',hotlinePolice:'Полиция',hotlineMedical:'Скорая помощь',events:'Массовые мероприятия',eventsShort:'События',layerEvents:'Массовые мероприятия',eventDetail:'Массовое мероприятие',noEvents:'Нет запланированных мероприятий',
   kind_concert:'Концерт',kind_football:'Футбольный матч',kind_festival:'Фестиваль',kind_rally:'Митинг',kind_other:'Другое',
   phase_upcoming:'Ожидается',phase_arrival:'Люди собираются',phase_live:'Идёт',phase_departure:'Люди расходятся',phase_ended:'Завершено',
   attendance:'Ожидаемое число участников',onSite:'Сейчас на месте',seekers:'Пойдут в пункты',potential:'Потенциальная загрузка',
@@ -33,3 +51,5 @@ export const eventMessages = {
 };
 export const EVENT_PLACES = ['n6_4','n3_5','n1_6','n4_2','n2_4','n5_7'];
 export const LEVEL_COLORS = {ok:'#2d936f',watch:'#b98512',reroute:'#d9772b',overflow:'#ce4e36'};
+export const HOTLINES = [['112','hotline'],['101','hotlineFire'],['102','hotlinePolice'],['103','hotlineMedical']];
+export const RISK_ICONS = {crush:'team',exit_jam:'route',medical:'medical',clash:'warning',surge:'team',fire:'fire',lost_child:'search',traffic:'route'};

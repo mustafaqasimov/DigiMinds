@@ -71,6 +71,7 @@ class EventBody(StrictModel):
     name:str=Field(min_length=3,max_length=60)
     kind:Literal['concert','football','festival','rally','other']
     node:str=Field(pattern=r'^n[0-6]_[0-8]$')
+    description:str=Field(default='',max_length=200)
     attendance:int=Field(ge=50,le=200000)
     start:float
     end:float

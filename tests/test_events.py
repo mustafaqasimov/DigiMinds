@@ -44,6 +44,9 @@ def test_overflow_recommends_nearest_reserve_and_closed_roads_change_forecast():
     s=Store(':memory:')
     festival=next(e for e in s.snapshot()['events'] if e['id']=='ev-festival')
     assert festival['worst']>100 and festival['deficit']>0 and festival['reserve']['id'] in ('s5','s6')
+    plan=festival['reserves']
+    assert sum(r['absorbs'] for r in plan)+festival['uncovered']==festival['deficit']+festival['unplaced']
+    assert festival['reserve']['direction'] in ev.COMPASS and festival['risks'] and festival['description']
     with s.lock,s.db:
         for r in s.objects('road'):
             if 'n1_6' in (r['a'],r['b']):r['blocked']=True;s.put('road',r)
@@ -77,3 +80,20 @@ def test_prepare_opens_recommended_reserve(client):
     assert opened in [x['id'] for x in festival['shelters']] and festival['worst']<before['worst']
     assert client.post('/api/events/ev-festival/prepare',headers=login(client,'observer')).status_code==403
     assert client.post('/api/demo/events',headers=login(client)).status_code==200
+
+def test_bearing_and_risk_level():
+    a={'lat':40.37,'lng':49.84}
+    assert ev.bearing(a,{'lat':40.38,'lng':49.84})=='N'
+    assert ev.bearing(a,{'lat':40.37,'lng':49.85})=='E'
+    assert ev.bearing(a,{'lat':40.36,'lng':49.83})=='SW'
+    assert ev.risk_level(12000,50)=='high' and ev.risk_level(800,101)=='high'
+    assert ev.risk_level(6000,None)=='elevated' and ev.risk_level(800,40)=='moderate'
+
+def test_reserves_cover_shortfall_in_order_and_report_what_is_left():
+    s=Store(':memory:')
+    with s.lock,s.db:
+        s.put('event',{'id':'ev-huge','name':'Mitinq','kind':'rally','node':'n3_5','attendance':60000,'start':s.clock()-60,'end':s.clock()+3600})
+    huge=next(e for e in s.snapshot()['events'] if e['id']=='ev-huge')
+    assert [r['id'] for r in huge['reserves']]==sorted([r['id'] for r in huge['reserves']],key=lambda i:[r['meters'] for r in huge['reserves'] if r['id']==i][0])
+    assert len(huge['reserves'])==2 and huge['uncovered']>0
+    assert huge['risks']==list(ev.RISKS['rally'])

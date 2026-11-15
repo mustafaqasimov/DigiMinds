@@ -12,6 +12,15 @@ import math
 import uuid
 
 KINDS = ('concert', 'football', 'festival', 'rally', 'other')
+# Incidents that could plausibly happen at each kind of gathering. Shown as risks, never as reports.
+RISKS = {
+    'football': ('crush', 'exit_jam', 'medical', 'clash'),
+    'concert': ('surge', 'medical', 'fire'),
+    'festival': ('lost_child', 'medical', 'fire'),
+    'rally': ('crush', 'traffic', 'medical'),
+    'other': ('crush', 'medical'),
+}
+COMPASS = ('N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW')
 ARRIVAL_S, DEPARTURE_S = 90 * 60, 45 * 60
 REACH_M = 2000
 PLACES = {  # Named spots on the synthetic training grid (see seed.py).
@@ -25,10 +34,13 @@ def demo_events(now):
     hour = 3600
     return [
         {'id': 'ev-football', 'name': 'Futbol matçı', 'kind': 'football', 'node': 'n6_4',
+         'description': 'Liqa matçı. Stadion ətrafında azarkeş zonası, oyundan sonra eyni anda kütləvi çıxış gözlənilir.',
          'attendance': 12000, 'start': now - 0.5 * hour, 'end': now + 1.25 * hour},
         {'id': 'ev-concert', 'name': 'Açıq hava konserti', 'kind': 'concert', 'node': 'n3_5',
+         'description': 'Mərkəz Parkı meydanında səhnə. Səhnə önündə sıxlıq və pirotexnika effektləri planlaşdırılır.',
          'attendance': 6000, 'start': now + 2 * hour, 'end': now + 5 * hour},
         {'id': 'ev-festival', 'name': 'Bulvar festivalı', 'kind': 'festival', 'node': 'n1_6',
+         'description': 'Payız şəhər festivalı: yarmarka, yemək köşkləri və küçə çıxışları. Ailələr və uşaqlar çox olacaq.',
          'attendance': 15000, 'start': now + 26 * hour, 'end': now + 32 * hour},
     ]
 
@@ -70,6 +82,21 @@ def walking_distances(nodes, roads, start):
     return dist
 
 
+def bearing(a, b):
+    """8-point compass direction from a to b (lat/lng dicts)."""
+    dy = b['lat'] - a['lat']
+    dx = (b['lng'] - a['lng']) * math.cos(math.radians(a['lat']))
+    return COMPASS[round(math.degrees(math.atan2(dx, dy)) % 360 / 45) % 8]
+
+
+def risk_level(attendance, worst):
+    if attendance >= 10000 or (worst or 0) > 100:
+        return 'high'
+    if attendance >= 5000 or (worst or 0) >= 90:
+        return 'elevated'
+    return 'moderate'
+
+
 def level(percent, cfg):
     if percent > 100:
         return 'overflow'
@@ -108,15 +135,23 @@ def forecast(nodes, roads, shelters, events, cfg, now):
         # Seats needed to keep every receiving shelter under the reroute threshold.
         deficit = round(sum(max(0, s['occupancy'] + r['incoming'] - s['capacity'] * cfg['reroute_percent'] / 100)
                             for r in rows for s in [by_id[r['id']]]))
-        reserves = sorted((dist[s['node']], s) for s in shelters
-                          if s['status'] == 'standby' and s['node'] in dist)
-        reserve = reserves[0][1] if reserves and deficit > 0 else None
         unplaced = round(seekers) if not rows else 0
+        # Reserve zones to open, nearest first, until they cover the shortfall.
+        need, plan = deficit + unplaced, []
+        for s in sorted((s for s in shelters if s['status'] == 'standby' and s['node'] in dist),
+                        key=lambda s: (dist[s['node']], s['id'])):
+            if need <= 0:
+                break
+            plan.append({'id': s['id'], 'name': s['name'], 'capacity': s['capacity'], 'meters': round(dist[s['node']]),
+                         'direction': bearing(where[ev['node']], where[s['node']]), 'absorbs': min(need, s['capacity'])})
+            need -= s['capacity']
+        worst = max((r['potential_percent'] for r in rows), default=None)
         results.append({**ev, 'lat': where[ev['node']]['lat'], 'lng': where[ev['node']]['lng'], 'phase': phase, 'presence': round(factor, 2), 'on_site': round(ev['attendance'] * factor),
                         'seekers': round(seekers), 'shelters': rows, 'deficit': deficit, 'unplaced': unplaced,
-                        'worst': max((r['potential_percent'] for r in rows), default=None),
-                        'reserve': {'id': reserve['id'], 'name': reserve['name'], 'capacity': reserve['capacity'],
-                                    'meters': round(reserves[0][0])} if reserve else None})
+                        'worst': worst, 'reserves': plan, 'reserve': plan[0] if plan else None,
+                        'uncovered': max(0, need), 'description': ev.get('description', ''),
+                        'risks': list(RISKS.get(ev['kind'], RISKS['other'])),
+                        'risk': risk_level(ev['attendance'], worst)})
     potential = {sid: round((by_id[sid]['occupancy'] + extra) / by_id[sid]['capacity'] * 100, 1)
                  for sid, extra in combined.items() if extra >= 1}
     return results, potential
