@@ -1,187 +1,308 @@
 # DigiMinds · Urban Crisis & Crowd Evacuation Engine
 
-Digital Challenge üçün işləyən FastAPI + WebSocket + offline web tətbiqi. Vətəndaş SOS-larını hadisələr üzrə birləşdirir, kritik zonaları müəyyən edir və dispetçerin müdaxiləsini qeydə alır.
+**DIGITAL CHALLANGE** üçün vətəndaş təhlükəsizliyi və dispetçer idarəetməsini birləşdirən işlək prototip. Vətəndaş uyğun toplanış məntəqəsi və marşrut alır, SOS göndərir; dispetçer hadisələri, doluluğu və briqadaları idarə edir. Sistem xarici marşrut servisi kəsiləndə lokal hesablamaya keçir.
 
-**Yeni giriş səhifəsi:** Perimeter nümunəsinin səhifə quruluşunu izləyən narıncı giriş, sabit üst menyu, aşağı sürüşən xəritə/mətn bölmələri və funksiyalara birbaşa keçidlər. Əsas səhifə `/`, əməliyyat tətbiqi `/workspace.html` ünvanındadır.
+**Komanda:** Həsən Nurməmmədov · Asiman Mirzəliyev · Mustafa Qasımov
 
-**Real xəritə:** Leaflet 1.9.4 + OpenStreetMap onlayn xəritəsi. Bakı mərkəzinin 6 156 real coğrafi elementdən ibarət OSM çıxarışı tətbiqlə birlikdə saxlanır və oflayn görünüşdə işləyir. OSM raster plitələri kütləvi yüklənmir. Mənbələr: [map-data.md](docs/map-data.md).
+> **Məlumatın sərhədi:** fon xəritəsi real Bakı OpenStreetMap çıxarışıdır. Təxliyə qrafı, məntəqələr, tutumlar, əlçatanlıq atributları və hadisə nümunələri simulyasiyadır. Bunlar rəsmi təxliyə təlimatı deyil. [Xəritə mənbələri](docs/map-data.md).
 
-**Təlim məlumatları:** SOS hadisələri, məntəqələr, tutumlar və hazırkı lokal marşrut qrafı simulyasiyadır. Real coğrafi fon əlavə edilməsi bu marşrutları rəsmi və ya real küçə marşrutuna çevirmir.
+## 1. Sürətli başlanğıc
 
-![DigiMinds giriş səhifəsi](docs/landing-preview.jpg)
+İki alternativ var: **Docker Compose** və ya **lokal Python runtime**. Əsas vətəndaş/dispetçer tətbiqi üçün xarici API açarı və frontend build tələb olunmur. İlk quraşdırmada paket/image endirmək üçün internet lazımdır.
 
-## Başlatmaq
-
-**Jüri üçün telefon → səs demosu:** Windows-da **JURI_DEMO.cmd** açın. Noutbukla
-telefonu eyni Wi-Fi/hotspot-a qoşun, noutbukda səsi aktivləşdirin, telefondakı
-pultdan mesaj göndərin. [Addımlar və 40 saniyəlik təqdimat mətni](docs/jury-demo.md).
-
-**Windows üçün asan yol:** GitHub-da **Code → Download ZIP**, sonra **Extract All / Hamısını çıxart**. Çıxarılan qovluqdakı **`BASLAT.cmd`** faylını iki dəfə klikləyin. Python 3.12+ varsa avtomatik tapılır; yoxdursa Windows Package Manager vasitəsilə quraşdırılmağa çalışılır. İlk açılışda paketlər qurulur və server cavab verdikdən sonra brauzer açılır. Sonrakı açılışlarda dəyişməyən paketlər yenidən endirilmir. Terminalı açıq saxlayın. 3000 portu başqa tətbiqdədirsə, boş port seçilir və düzgün ünvan açılır. Python quraşdırılması mümkün olmasa, pəncərədə göstərilən təlimatı izləyin.
-
-`127.0.0.1` yalnız sizin kompüterinizi göstərir. Burada açılan bulud demo serverinə öz kompüterinizdə həmin ünvanla qoşula bilməzsiniz; `BASLAT.cmd` serveri məhz sizin kompüterinizdə başladır.
-
-Python 3.12+ tələb olunur. Frontend üçün npm paketi, CDN və xarici API açarı lazım deyil.
+| İstifadə | Tələb |
+| --- | --- |
+| Docker ilə əsas tətbiq və 3 Challenge Drop | İşləyən Docker Engine və Docker Compose v2 (`--wait` dəstəyi ilə); Windows/macOS-da Docker Desktop, Linux containers rejimi |
+| Lokal runtime | Python 3.12+, pip və venv; Git və ya endirilmiş ZIP |
+| JavaScript və 600 paralel sorğu testi | Əlavə olaraq Node.js; layihənin CI versiyası Node 24-dür |
+| Səsli SOS / YOLO | Lokal runtime və ayrıca model/paket quraşdırması; aşağıdakı bölməyə baxın |
 
 ```bash
 git clone https://github.com/mustafaqasimov/DigiMinds.git
 cd DigiMinds
-python -m venv .venv
-# Linux/macOS:
+```
+
+Mövcud checkout-u yeniləmək üçün öz dəyişikliklərinizi saxladıqdan sonra `git pull --ff-only origin main` işlədin. JWT yenilənməsindən əvvəlki giriş sessiyası varsa hesabdan çıxıb yenidən daxil olun.
+
+### A. Docker Compose
+
+Repo kökündə:
+
+```bash
+docker compose up --build --wait --wait-timeout 120
+docker compose ps
+```
+
+Brauzer: **http://127.0.0.1:3000** · Əməliyyat ekranı: **http://127.0.0.1:3000/workspace.html**
+
+```bash
+# Jurnalı izləmək
+docker compose logs -f app
+
+# Dayandırmaq; verilənlər saxlanır
+docker compose down
+
+# Sonrakı açılış
+docker compose up --wait --wait-timeout 120
+
+# Kod dəyişəndə image-i yenidən qurmaq
+docker compose up --build --wait --wait-timeout 120
+```
+
+- `Dockerfile` Python 3.12 əsasında əsas asılılıqları quraşdırır, tətbiqi **root olmayan UID 10001** və **bir Uvicorn worker** ilə işə salır.
+- `compose.yaml` frontend və API-ni eyni origin-dən təqdim edən `app` konteynerini başladır. SQLite üçün ayrıca DB serveri lazım deyil.
+- `/app/data` **`app_data` adlı volume** ilə saxlanır: SQLite, WAL faylları və demo JWT imza açarı konteyner yenidən yaradılanda itmir. Compose volume adının əvvəlinə layihə adını əlavə edə bilər.
+- Healthcheck `/api/health` cavabında `ok: true` yoxlayır. `--wait` sağlam vəziyyət yaranana qədər gözləyir; image build vaxtı bu gözləmə limitindən ayrıdır.
+- `.dockerignore` lokal DB, `.env`, JWT/TLS açarları, virtual mühit və model çəkilərini build kontekstindən çıxarır. Mənbə faylları konteynerdə yalnız oxunandır; iş məlumatı volume-a yazılır.
+- **Əsas image səs/YOLO paketlərini və modellərini daşımır.** Bu əlavə funksiyalar üçün lokal quraşdırma bölməsindən istifadə edin. Üç Challenge Drop əsas image-dədir.
+
+**Port məşğuldursa:** repo kökündə `.env` faylına `PORT=3001` yazın və eyni Compose əmri ilə başladın; ünvan `http://127.0.0.1:3001` olacaq. Standart `HOST_BIND=127.0.0.1` yalnız bu kompüterdən giriş verir. Eyni Wi-Fi cihazlarına açmaq üçün `.env` daxilində `HOST_BIND=0.0.0.0` təyin edin və firewall-da seçilmiş porta icazə verin. Bu, HTTPS yaratmır; telefon mikrofonu/sensoru üçün aşağıdakı HTTPS təlimatına baxın.
+
+`docker compose down --volumes` **DB və demo JWT açarı daxil olmaqla volume-u silir**. Bu əmrdən yalnız demo məlumatını sıfırlamaq istədikdə istifadə edin. Lokal Python-un `data/` qovluğu ilə Docker volume-u ayrı məlumat bazalarıdır.
+
+### B. Lokal runtime
+
+**Windows üçün ən qısa yol:** ZIP-i tam çıxarın və `BASLAT.cmd` faylını açın. Launcher Python-u tapır, `.venv` yaradır, paketləri quraşdırır və server hazır olduqda brauzeri açır. Terminalı açıq saxlayın. Port 3000 məşğuldursa boş port seçilir; terminaldakı faktiki ünvanı istifadə edin.
+
+Əllə quraşdırma, **Windows PowerShell**:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe tools/dev.py
+```
+
+**Linux/macOS**:
+
+```bash
+python3.12 -m venv .venv
 source .venv/bin/activate
-# Windows PowerShell: .venv\Scripts\Activate.ps1
 python -m pip install -r requirements-dev.txt
 python tools/dev.py
 ```
 
-Brauzerdə `http://127.0.0.1:3000` açın. `http://127.0.0.1:3000/openapi.json` API sxemidir. `npm run dev` eyni launcher-i çağırır; Node yalnız JS testlərini işlətmək üçün lazımdır.
+Əsas tətbiq üçün `requirements.txt` kifayətdir; yuxarıda testləri də işlətmək üçün `requirements-dev.txt` verilib. Lokal ünvan `http://127.0.0.1:3000`, dayandırmaq `Ctrl+C`-dir. DB avtomatik yaradılır və sxem əlavələri tətbiq olunur; ayrıca migration əmri yoxdur. Dəyişiklikdən əvvəl mövcud DB-nin ehtiyat nüsxəsini alın.
 
-Demo rejimində **Dispetçer → demo hesab seçin**. Hesablar: `demo-dispatcher`, `demo-observer`, `demo-responder`, `demo-admin`; hər birinin demo şifrəsi `demo`-dur. Bunlar yalnız təlim rejimi üçündür. Vətəndaş sessiyası avtomatik yaranır.
+**`.env` ilə lokal açılış:** `.env.example` faylını `.env` adına kopyalayın və lazımi dəyişənləri yazın. `tools/dev.py` və `tools/start.py` `.env` faylını avtomatik oxumur. Açıq şəkildə oxutmaq üçün aktiv virtual mühitdə:
 
-## Hazır funksiyalar
+```bash
+python -m uvicorn backend.app:app --env-file .env --host 127.0.0.1 --port 3000 --workers 1 --no-proxy-headers --no-access-log
+```
 
-**Tələb yoxlaması və 90% doluluq:** [Uyğunluq cədvəli və nümayiş addımları](docs/requirements-audit.md).
-90%-də vətəndaş avtomatik başqa uyğun məntəqəyə yönləndirilir, dispetçerə sarı xəbərdarlıq və
-ən yaxın yolu açıq ehtiyat məntəqəni bir kliklə açmaq imkanı verilir. 95%-dən yuxarı və ya
-5 dəqiqədə eyni zona/500 m radiusda ən az 4 fərqli SOS olduqda qırmızı həyəcan yaranır.
-**“Briqada göndər və məntəqə aç”** hər iki əməliyyatı bir təsdiqlə icra edir.
-Ehtiyat məntəqə operator təsdiqi ilə açılır; marşrut yenilənməsi avtomatikdir.
-İcra nəticələri paneldə göstərilir, təkrar klik əlavə resurs ayırmır.
+Compose isə aşağıdakı konfiqurasiya dəyişənlərini `.env`/shell-dən `environment` bölməsi vasitəsilə konteynerə ötürür. Docker-də `DATABASE_PATH` volume daxilində `/app/data/crisis.db` olaraq sabit saxlanır.
 
-**Zəlzələ təlimi:** eyni otağa qoşulan cihazlarda sınaq mesajı ilə həyəcan ekranı
-və səs, qəbul göstəriciləri və ümumi dayandırma. [Təqdimat təlimatı və Google inteqrasiyasının sərhədləri](docs/earthquake-drill.md).
+### Açılışı yoxlamaq və demo hesablar
 
-| Hissə | Davranış |
+| Ünvan | Gözlənilən nəticə |
 | --- | --- |
-| Vətəndaş | Xəritədən mövqe/GPS, uyğun məntəqələr, doluluq, piyada marşrutu, 4 SOS növü, “Təhlükəsizəm” |
-| SOS +1 | Eyni növ, 180 m sabit hadisə mərkəzi, son 30 dəqiqədə yenilənən açıq hadisə; hər vətəndaş hadisədə bir dəfə sayılır |
-| Qırmızı həyəcan | Son sürüşən 300 saniyədə eyni zonada **və ya** 500 m dairədə ≥4 fərqli qəbul edilmiş SOS; məntəqə doluluğu **>95%** |
-| Yenidən marşrut | Bağlı yol qrafdan çıxarılır; doluluq **≥90%** olduqda məntəqə namizədlərdən çıxarılır; canlı vəziyyət dəyişəndə yenidən hesablanır |
-| Dispetçer | Hadisə xəritəsi, saylar, briqadalar, 1 kliklə göndəriş və ehtiyat məntəqənin açılması; təkrar klik ikinci resurs ayırmır |
-| Canlı məlumat | Autentifikasiyalı, rola görə süzülən WebSocket; əlaqə kəsilərsə 4 saniyəlik HTTP polling |
-| Offline | Service Worker tətbiq/xəritə keşləyir; brauzer müstəqil Dijkstra hesablayır; SOS IndexedDB-də göndərilməmiş kimi saxlanır |
-| Rollar | Vətəndaş, dispetçer, xilasedici, müşahidəçi, admin; admin icazələrdən yeni rol yarada və təyin edə bilir |
-| Dillər | Azərbaycan, ingilis, rus dilləri |
-| Challenge | 4 SOS dalğası, routing provider kəsilməsi, WebSocket kəsilməsi; laboratoriya yalnız demo rejimində |
-| YOLO | Ayrı lokal sensor prosesi; person detection, ROI, kalibrasiya veriləndə nəfər/m², API-yə ölçmə göndərişi |
+| `/` | Giriş səhifəsi |
+| `/workspace.html` | Vətəndaş və dispetçer tətbiqi |
+| `/api/health` | `ok: true`, demo rejimi və dataset məlumatı |
+| `/docs` / `/openapi.json` | İnteraktiv API sxemi / JSON sxemi |
+| `/vision.html` | Əlavə YOLO video analiz ekranı |
+| `/workspace.html#voice` | Əlavə Səsli SOS ekranı |
+| `/sensor` | Telefonun titrəmə sensoru ekranı |
 
-“4 fərqli SOS” burada 4 unikal hesabatdır; hadisənin `+1` sayğacı ilə ayrı saxlanır. Eyni vətəndaş müxtəlif hadisələr barədə ayrıca hesabat verə bilər. “Təhlükəsizəm” aktiv yardım sayını azaldır, daxil olmuş SOS tarixçəsini silmir. Radius qaydası yaxınlıqdakı SOS koordinatlarını dairə mərkəzləri kimi yoxlayır; tranzitiv DBSCAN zənciri istifadə edilmir.
+Demo rejimində şifrə **`demo`**-dur:
 
-## Xarici API nasazlığına davamlılıq
+| Hesab | Təyinat |
+| --- | --- |
+| `demo-dispatcher` | Hadisə və briqada idarəetməsi |
+| `demo-admin` | İdarəetmə, rol təyin etmə və audit |
+| `demo-observer` | Əməliyyat məlumatlarının müşahidəsi |
+| `demo-responder` | Öz briqadası və təyin edilmiş hadisə |
+| `demo-priority_citizen` | Xüsusi qayğıya ehtiyacı olan vətəndaş, Priority 1 |
 
-**Yeni subtask — xarici xəritə/marşrut API nasazlığı:** 503 və uzun cavabda avtomatik lokal Dijkstra, 4,5 saniyəlik provayder limiti, closed/open/half-open circuit breaker, 4 paralel çağırış limiti və üç dildə daimi ehtiyat rejimi bildirişi. Xəritə tile-ları yüklənməyəndə lokal Bakı xəritəsi açılır. Dispetçerin **Challenge laboratoriyası** bölməsində **HTTP 503 yarat**, **6 saniyə gecikdir**, **Servisi bərpa et** düymələri ilə yoxlayın. [Araşdırma, memarlıq və jüri nümayişi](docs/routing-resilience.md).
+Adi vətəndaş sessiyası avtomatik yaranır. Vətəndaş və dispetçeri eyni anda sınaqdan keçirmək üçün ayrı brauzer profilləri və ya gizli pəncərə istifadə edin. Demo hesablarını açıq istehsal xidməti kimi yayımlamayın.
 
-## Prioritet SOS və əlçatan marşrut
+## 2. Sistem arxitekturası və məlumat axını
 
-Vətəndaş xəritəsində sağ yuxarı hesab düyməsi → **Prioritet SOS rolunu aktivləşdir**. Bu rolun SOS-u dərhal **Kritik · Priority 1** kimi dispetçerə göstərilir. Yalnız panduslu, maneəsiz, əlil arabası və tibbi nəqliyyat keçidi atributları olan demo yollar seçilir; uyğun yol yoxdursa adi piyada marşrutu göstərilmir. Demo hesab: `demo-priority_citizen` / `demo`.
-
-Server və oflayn brauzer eyni məhdudiyyətləri tətbiq edir. Əlçatanlıq məlumatları **simulyasiyadır**, real küçələr üzrə təsdiq deyil. [İstifadə, məlumat müqaviləsi və testlər](docs/priority-accessibility.md).
-
-## Titrəşimə əsaslanan zəlzələ siqnalı və vətəndaşın geri dönüşü
-
-Telefonlar `/sensor` səhifəsində akselerometr məlumatından STA/LTA trigger-i hesablayır. Bu, MyShake və Earthquake Network-un istifadə etdiyi yanaşmadır. Server **10 saniyə ərzində, 1 km radiusda ≥3 fərqli cihazdan** siqnal alanda titrəməni təsdiqləyir. Tək cihazın siqnalı, məsələn telefonun düşməsi, zəlzələ sayılmır. Tələb olunan cihaz sayı laboratoriyada 1-4 arasında seçilir.
-
-Titrəmə təsdiqlənəndə:
-- hamıya görünən **ZƏLZƏLƏ XƏBƏRDARLIĞI** çıxır;
-- demo rejimində komandanın zəlzələ təlimi alarmı otağa qoşulmuş bütün cihazlarda avtomatik çalır;
-- vətəndaşdan **"Vəziyyətiniz necədir?"** soruşulur: **Təhlükəsizəm**, **Yardım lazımdır** (tibbi SOS kimi gedir), **Binada qalmışam** (dağıntı SOS kimi gedir);
-- dispetçer cavabların sayını, xəritədə isə yardım istəyən nöqtələri görür.
-
-**Başlatmaq:** `BASLAT-SENSOR.cmd` (və ya `python tools/start.py --https`). Telefonlar hərəkət sensorunu yalnız HTTPS üzərindən verir, ona görə self-signed sertifikat yaradılır. Telefonlarda terminalda çap olunan `https://<IP>:3000/sensor` ünvanı açılır və brauzerdə "Advanced → Proceed" seçilir.
-
-**Google:** Google-un Android zəlzələ xəbərdarlığını üçüncü tərəf tətbiqinə ötürən açıq API yoxdur ([araşdırma](docs/earthquake-drill.md)). Ona görə bu siqnal DigiMinds-in öz sensor şəbəkəsindən gəlir. Bu, rəsmi erkən xəbərdarlıq xidməti deyil.
-
-## İstilik xəritəsi: toplaşma məntəqələrinin doluluğu
-
-"Xəritə qatları" menyusundakı **İstilik xəritəsi** hər açıq məntəqənin ətrafında doluluğa görə rənglənmiş bir işıq ləkəsi göstərir: yaşıl (boş) → sarı (70%) → narıncı (90%) → qırmızı (100%+). Yaxınlıqda tədbir varsa, rəng tədbiri nəzərə alan potensial doluluğu göstərir. Vətəndaş yalnız 2.5 km daxilindəki məntəqələri görür. Legenda "Legenda" düyməsindədir.
-
-## Kütləvi tədbirlər və toplaşma məntəqələrinin potensial doluluğu
-
-Konsert, futbol matçı, festival və mitinq kimi tədbirlər yer, gözlənilən iştirakçı sayı və vaxt ilə qeyd olunur. Hər tədbir üçün hazırda yerində olan insan sayı vaxta görə dəyişir: başlamazdan 90 dəqiqə əvvəl gəliş başlayır, tədbir boyu tam say saxlanır, bitəndən sonra 45 dəqiqə ərzində dağılış gedir.
-
-Model təxliyə olarsa iştirakçıların 6%-nin toplaşma məntəqəsinə gedəcəyini fərz edir. Bu insanlar 2 km daxilindəki açıq məntəqələrə piyada yol məsafəsinin kvadratına tərs mütənasib paylanır (qravitasiya modeli). Hesablama marşrutla eyni yol qrafında aparılır, ona görə bağlı yollar proqnozu dəyişir. Hər məntəqə üçün **hazırkı → potensial doluluq faizi** göstərilir: normal (<70%), nəzarət (70-90%), yönləndirmə dayanır (≥90%), tutumu aşır (>100%). 90% həddini saxlamaq üçün nə qədər əlavə yer lazım olduğu da hesablanır və ən yaxın ehtiyat məntəqə tövsiyə olunur.
-
-- **Aydın mesajlar:** hər tədbirin təsviri, yəni nə ilə bağlı olduğu göstərilir. Detal panelində **"Potensial risk proqnozu: hadisə baş verməyib"** bildirişi, tədbirin növünə görə baş verə biləcək hadisələr (izdiham, çıxışlarda tıxac, tibbi hallar, yanğın, itkin uşaqlar və s.) və risk səviyyəsi var. **Ehtiyat zona harada ayrılmalıdır** bölməsində ehtiyat məntəqə istiqamət, piyada məsafə, tutum və qəbul edəcəyi insan sayı ilə yazılır. Bir zona kifayət etmirsə, növbəti zona və qalan çatışmazlıq göstərilir, seçilmiş zonalar xəritədə işarələnir.
-- **Qaynar xətt:** tədbir detalında və vətəndaşın yaxınlıqdakı tədbir kartında `tel:112` düyməsi var, əlavə olaraq 101, 102, 103 nömrələri göstərilir. Telefonda düymə zəng ekranını açır, zəngi istifadəçi özü təsdiqləyir.
-- **Dispetçer:** "Tədbirlər" bölməsində siyahı və proqnoz cədvəli var. **Ehtiyat məntəqəni hazırla** düyməsi tövsiyə olunan məntəqəni açır, burada yeni tədbir də əlavə etmək olar. Xəritədə tədbirin təsir dairəsi və məntəqələrə axın xətləri görünür.
-- **Vətəndaş:** 1.5 km daxilində davam edən və ya 6 saat ərzində başlayacaq tədbir barədə xəbərdarlıq kartı çıxır. Məntəqə detalında tədbirlər nəzərə alınmaqla potensial doluluq göstərilir.
-- **Demo:** bazada üç sintetik tədbir yaradılır: davam edən futbol matçı, 2 saat sonra başlayacaq konsert və sabahkı festival. Laboratoriyadakı **Demo tədbirlərini yenilə** düyməsi onları cari vaxta görə yenidən qurur.
-
-Bu proqnoz sintetik planlaşdırma modelidir. 6% payı və paylanma qaydası real müşahidə ilə kalibrasiya edilməyib.
-
-## Vətəndaş təhlükəsizlik profili
-
-Vətəndaş panelində **Təhlükəsizlik profilim** düyməsi və ya `/#profile` açın. Yaş, hərəkət/əlçatanlıq ehtiyacları, nəqliyyat, ailə və təcili əlaqəni ayrı kartlarda daxil edib saxlayın. Şəxsi hazırlıq siyahısı bu seçimlərə uyğun dəyişir. Paylaşma standart olaraq bağlıdır; razılıq veriləndə yalnız aktiv SOS-a baxan səlahiyyətli operator və təyin edilmiş briqada yardım profilini aça bilir.
-
-Profil cari 8 saatlıq guest sessiyasına bağlıdır; sessiya itdikdə hesab bərpası yoxdur. Hələlik sınaq məlumatından istifadə edin. mygov inteqrasiyası və real küçələr üzrə təsdiqlənmiş əlçatanlıq məlumatları əlavə edilməyib; əlçatan marşrut demo qrafında işləyir.
-
-Dizayn mənbələri, API, testlər və məhdudiyyətlər: [citizen-profile.md](docs/citizen-profile.md).
-
-## İki alternativ işləmə mexanizmi
-
-1. **Xarici API-siz:** serverdə saxlanan yol qrafı və Dijkstra. Yol bağlanmaları və məntəqə yenilənmələri işləyir. Standart seçim budur.
-2. **Server də əlçatmazdır:** əvvəl yüklənmiş tətbiq və xəritə, brauzerdə ayrıca Dijkstra, IndexedDB SOS növbəsi. Yeni bağlanmalar bilinmir; ekran köhnə məlumatı açıq bildirir. Yenidən qoşulanda yalnız eyni vətəndaş sessiyasına aid növbə göndərilir, idempotency açarı təkrarı önləyir.
-
-Offline ilk açılışdan sonra və HTTPS/localhost üzərində işləyir. Brauzer məlumatları silinərsə keş və növbə də silinir. 8 saatlıq vətəndaş sessiyası bitərsə əvvəlki növbə başqa şəxs adından avtomatik göndərilmir. SMS/mesh rabitəsi bu versiyaya daxil deyil.
-
-## YOLO
-
-**Saytdan video yükləmək:** Windows-da **`YOLO_BASLAT.cmd`** açın. İlk dəfə YOLO və video kodlayıcı paketləri, sonra model yüklənir. Saytda **YOLO analiz** bölməsinə keçin (`/vision.html`), təlim hesabına daxil olun, videonu seçin və **Analizi başlat** düyməsini basın. Gediş, insan sayı və çərçivəli nəticə videosu həmin səhifədə görünür; MP4 və JSON hesabatı endirmək olar. [İstifadə, limitlər və yoxlama](docs/web-yolo.md).
-
-Video limiti **100 MB / 60 saniyə / Full HD / 60 FPS**. Hər serverdə eyni anda bir analiz işləyir. Video ayrıca prosesdə emal olunur; xəritə və SOS API-si işləməyə davam edir. Nəticə yalnız yükləyən hesaba açılır, məntəqələrin doluluğunu dəyişmir. Real sahə məlum olmadığından veb analiz nəfər/m² vermir.
-
-```bash
-python -m pip install -r requirements-vision.txt
-python -m vision.worker --source path/to/video.mp4 --save-preview data/yolo-preview.jpg
+```mermaid
+flowchart TD
+    F["Frontend: vətəndaş və dispetçer"] <-->|"REST və WebSocket"| A["FastAPI: HTTP və statik fayllar"]
+    F --> C["Service Worker, IndexedDB və lokal marşrut"]
+    A --> G["JWT, RBAC və SOS qəbul limiti"]
+    G --> E["Hadisələr, doluluq və briqada əməliyyatları"]
+    E <-->|"Tranzaksiyalar və audit"| D[("SQLite")]
+    E --> R["Yerli qraf və Dijkstra"]
+    R -.->|"Timeout və circuit breaker"| X["Opsional xarici marşrut API"]
+    A -.-> V["Opsional YOLO və səs emalı prosesləri"]
 ```
 
-**Standart model: YOLO26n**, giriş ölçüsü 960, etibar həddi 0.25, maksimum 1000 aşkarlama. `ultralytics==8.4.213` saxlanılır; bu versiyada YOLO26 dəstəyi var. Kamera üçün model/ölçü seçimi və real test nəticələri: [YOLO26 sınağı](docs/yolo26-validation.md). `--model yolo26s.pt` və `--model yolo26m.pt` də istifadə edilə bilər; bu nümunədə daha böyük variantlar üstün nəticə vermədi.
+**SOS axını:** frontend mətn/növ/mövqe və `event_key` göndərir → qəbul limiti artıq yükü body/DB emalından əvvəl rədd edir → JWT imzası, sessiya və aktual rol yoxlanır → SQLite tranzaksiyasında dublikat/kvota/hesabat işlənir → hadisə və xəbərdarlıq hesablanır → rola uyğun WebSocket snapshot-u və ya HTTP polling ilə ekran yenilənir. Diaqram məntiqi komponentləri göstərir; qəbul limiti middleware səviyyəsində işləyir.
 
-GPU-suz quraşdırma üçün əvvəl PyTorch-un CPU paketlərini quraşdırmaq olar; `uv` varsa `uv pip install -r requirements-vision.txt --torch-backend cpu`. Model çəkisini ilk dəfə internetdən alır; sonra yerli `--model` yolu ilə offline işləyir. Mənbə lokal şəkil/video, kamera indeksi `0` və ya səlahiyyətli RTSP URL ola bilər. Ayrı sensor prosesi API-ni bloklamır.
+**Marşrut axını:** mövqe və əlçatanlıq ehtiyacı → bağlı yolların və doluluğu ≥90% olan məntəqələrin çıxarılması → lokal Dijkstra → uyğun adi vətəndaş sorğusunda opsional xarici API → nasazlıqda hazır lokal nəticə. Prioritet vətəndaş xarici `foot-walking` provayderinə göndərilmir; yalnız əlçatanlığı işarələnmiş lokal qraf istifadə edilir.
 
-Standart `partial` rejim yalnız ölçməni stdout-a verir. Kameranın bütün dolu sahəni əhatə etdiyi təsdiqlənəndən sonra:
+**DB axını:** `backend/seed.py` demo qrafını yaradır; `backend/store.py` hesabatları, hadisələri, rolları, sessiyaları, yol/məntəqə vəziyyətini, dublikat açarlarını və auditi saxlayır. Diskdə SQLite WAL rejimi istifadə olunur. `frontend/baku.geojson` real coğrafi fondur və təxliyə qrafından ayrıdır.
+
+| Hissə | Əsas fayllar və genişlənmə nöqtəsi |
+| --- | --- |
+| API və giriş yoxlamaları | `backend/app.py`, `security.py`, `request_guards.py`, `sos_guard.py` |
+| Qaydalar və məlumat | `backend/store.py`, `seed.py`, `geo.py`, `accessibility.py` |
+| Xarici API-yə davamlılıq | `backend/circuit.py`, `frontend/routing-client.js`, `map-circuit.js` |
+| Frontend və oflayn iş | `frontend/app.js`, `ui.js`, `offline.js`, `sw.js` |
+| Dil dəstəyi | `frontend/i18n.js` və modul üzrə `*-i18n.js` faylları |
+| Profil, tədbir və sensor | `backend/profiles.py`, `events.py`, `seismic.py` |
+| Opsional AI | `backend/voice.py`, `speech/`, `backend/vision_jobs.py`, `vision/` |
+
+Prototip bir tətbiq prosesi ilə işləyir. Rollar permission siyahıları, dillər tərcümə lüğətləri, xarici servis isə ayrıca circuit/provider qatı ilə genişlənir. Çox worker/replika üçün SQLite, prosesdaxili limiter və circuit vəziyyəti ortaq DB/Redis və koordinasiyalı qəbul nəzarəti ilə dəyişdirilməlidir. Sadəcə `--workers` sayını artırmaq eyni qorumanı saxlamır. [Ətraflı arxitektura](docs/architecture.md).
+
+## 3. Challenge Drop və dinamik texniki şərtlər
+
+Yarış şərtinə görə **12:00, 13:00 və 14:00-da** münsiflər üç gözlənilməz texniki dəyişiklik elan edir. Yeni rol/dil, xarici API kəsintisi və yüksək yük/təhlükəsizlik tələbi kimi dəyişikliklərə uyğunlaşmaq tələb olunur. Aşağıda komandaya verilmiş üç konkret subtask və repodakı qarşılığı göstərilir; saatlar yarış cədvəlidir, avtomatik planlaşdırılmış sistem işi deyil.
+
+| Subtask | Tələb | Mövcud nəticə |
+| --- | --- | --- |
+| 1. Prioritet vətəndaş | Avtomatik Kritik / Priority 1 SOS; yalnız panduslu, maneəsiz, əlil arabası/tibbi nəqliyyat üçün əlçatan marşrut | Rol, serverdə prioritet və server/brauzerdə eyni əlçatanlıq filtri var; real yol reyestri əvəzinə demo atributları istifadə olunur |
+| 2. Xarici API kəsintisi | HTTP 503 və ya >5 saniyə gecikmədə çökmədən lokal ehtiyat hesablaması və görünən bildiriş | 4,5 s provayder limiti, circuit breaker, lokal Dijkstra, xəritə və brauzer fallback-ı var |
+| 3. 500+ saxta SOS | Rate limiting, dublikat filtrasiyası, JWT/RBAC, orta latency <300 ms | Təhlükəsizlik və qəbul qoruması var; 600 paralel sorğu ölçülüb. **Bütün ssenarilərdə <300 ms hədəfi tam ödənməyib** |
+
+### Subtask 1 — Xüsusi qayğı və Priority 1
+
+- Rol: `priority_citizen`; adi vətəndaşın icazələri qalır, dispetçer səlahiyyəti verilmir.
+- Priority 1 serverdə təyin olunur; istifadəçinin payload-a özbaşına `priority` əlavə etməsi qəbul edilmir. Kritik xəbərdarlıq üçün 4 SOS yığılması gözlənilmir.
+- Yol və məntəqə üçün `accessibility_verified`, `step_free`, `ramp_access`, `obstacle_free`, `wheelchair_accessible`, `medical_vehicle_accessible` atributlarının **hamısı true** olmalıdır. Naməlum məlumat əlçatan sayılmır.
+- Bağlı yol və ≥90% dolu məntəqə çıxarılır. Başlanğıc nöqtəsi qraf düyünündən 2 m-dən uzaqdırsa yoxlanmamış keçid uydurulmur; bu hədd demo üçündür, GPS dəqiqliyi zəmanəti deyil.
+- Uyğun yol yoxdursa **“Təsdiqlənmiş əlçatan marşrut yoxdur”** göstərilir. Adi piyada yoluna səssiz keçid edilmir; eyni qayda oflayn brauzerdə də tətbiq olunur.
+
+**Nümayiş:** `/workspace.html` → hesab/iş rejimi → **Prioritet SOS rolunu aktivləşdir**, yaxud `demo-priority_citizen` ilə daxil olun. Standart demo mövqeyindən SOS göndərin. Ayrı dispetçer sessiyasında **Kritik · Priority 1** və əlçatan marşrut davranışını yoxlayın.
+
+**Sübut:** `tests/test_priority_accessibility.py`, `tests/priority-accessibility.test.mjs`. [Tam davranış və sərhədlər](docs/priority-accessibility.md).
+
+### Subtask 2 — HTTP 503 və 5 saniyədən uzun gecikmə
+
+- Xarici çağırışın bütün müddəti `asyncio.timeout(4.5)` ilə məhdudlaşdırılır; təkcə read timeout-a arxalanılmır.
+- Circuit: **closed → 3 ardıcıl xəta → open (30 s) → half-open (1 sınaq sorğusu)**. Uğurlu sınaq circuit-i bağlayır, uğursuz sınaq yenidən açır.
+- Proses üzrə maksimum **4 paralel xarici çağırış** var; artıq sorğular növbədə gözləmədən lokal cavab alır.
+- Ehtiyat mənbə lokal koordinat/yol qrafıdır. Cavab gözlənilərkən yol bağlanarsa və ya məntəqə dolarsa köhnə marşrut istifadə edilmir, lokal nəticə yenidən hesablanır.
+- Vətəndaşa **“Oflayn/ehtiyat marşrut rejimində işləyir”** bildirişi göstərilir. Cavabda `routing.mode`, `reason`, circuit vəziyyəti və ölçülmüş vaxt var.
+- Xəritə tile xətası lokal Bakı coğrafi fonuna keçir. Serverə də çıxış kəsilərsə əvvəldən keşlənmiş tətbiq/qraf istifadə olunur; yeni yol və doluluq vəziyyəti həmin anda bilinmir.
+
+**Nümayiş:** dispetçer → **Challenge laboratoriyası** → **HTTP 503 yarat** → marşrutu yoxlayın. Üç xəta sonrası `circuit_open` müşahidə edin. **Servisi bərpa et** və bərpa fasiləsindən sonra yenidən yoxlayın. Ayrı sınaqda **6 saniyə gecikdir** seçin: provayder təxminən 4,5 s-də dayandırılır və lokal cavab verilir. Əsaslandırma və nəqliyyat səviyyəsində sınaqlar: [routing-resilience.md](docs/routing-resilience.md).
+
+API açarı verilməməsi xəta sayılmır: tətbiq standart lokal rejimdə işləyir. Heç vaxt açılmamış saytın internetsiz ilk açılışı və keşdə olmayan məlumatın yaradılması fallback imkanına daxil deyil.
+
+### Subtask 3 — SOS Flood, JWT və RBAC
+
+**Qəbul və dublikat nəzarəti:** `/api/sos` və SOS yaradan seismic check-in endpointləri eyni qəbul qorumasından istifadə edir.
+
+| Nəzarət | Standart hədd / davranış |
+| --- | --- |
+| IP trafiki | 1200 SOS sorğusu / 60 s, autentifikasiyasız trafik də daxil |
+| Hesab trafiki | 60 sorğu / 60 s, təkrar göndərişlər də daxil |
+| Yeni göndəriş açarı | 8 / hesab / 60 s, eyni hesabın sessiyaları arasında ortaq |
+| Qəbul edilmiş paralel sorğu | Server üzrə 16, hesab üzrə 2 |
+| SOS emal yerləri | 4; dispetçerin standart işçi hovuzundan ayrı |
+| Body və vaxt həddi | Adi sorğuda 64 KiB və body qəbuluna 5 s |
+| Yük aşılması | HTTP 429, `Retry-After`, qəbul qatında `X-RateLimit-Scope` |
+| Dublikat | `(user_id, event_key)` və eyni şəxsin eyni hadisəyə təkrarı; restartdan sonra da `sos_deliveries` ilə saxlanır |
+
+Eyni açarla ziddiyyətli məlumat `409` verir; normal təkrar `200` qaytarır və insan sayını artırmır. Dublikatlar trafik kvotasından azad deyil. Brauzerin əl ilə göndərişi və oflayn növbəsi `Retry-After` müddətinə əməl edir. Bu mexanizm **yalan xəbəri müəyyən edən model deyil**; qəbul yükünü və təkrarları məhdudlaşdırır.
+
+**Autentifikasiya:** HS256 JWT-də imza, `iss`, `aud`, `iat`, `nbf`, `exp`, `sub`, `role`, `jti` yoxlanır. Tokenin heşi aktiv server sessiyasında da olmalıdır; logout onu ləğv edir. İcazələr JWT-dəki köhnə roldan deyil, bazadakı **cari roldan** alınır. `alg=none`, dəyişdirilmiş/vaxtı bitmiş token və icazəsiz rol rədd edilir.
+
+**Kritik əməliyyatlar:** `/api/alerts/{id}/dispatch`, `/open_shelter`, `/respond` üçün `incident:act` lazımdır. Adi/prioritet vətəndaş, müşahidəçi və xilasedici briqada ayıra bilmir. Əməliyyat atomik, təkrar çağırışda idempotent və auditlidir. Birgə `/respond` uyğun briqada və ehtiyat məntəqəni eyni tranzaksiyada ayırır.
+
+**600 paralel sorğu üçün son saxlanmış ölçmə** (`3007856` dəyişiklik dəsti; client end-to-end, keep-alive):
+
+| Ssenari | SOS orta | Qəbul edilmiş SOS orta | Panel oxuması orta | Briqada təyinatı orta |
+| --- | ---: | ---: | ---: | ---: |
+| Eyni açarın təkrarı | 98,82 ms | 209,42 ms | 188,74 ms | 175,53 ms |
+| 24 hesabdan yeni açarlar | 215,27 ms | **429,82 ms** | **364,22 ms** | **360,45 ms** |
+| Etibarsız JWT | 74,41 ms | Qəbul yoxdur | 141,27 ms | 146,20 ms |
+
+Bütün 600 TCP bağlantısı yenidən qurulanda da bəzi orta nəticələr 300 ms-dən yuxarıdır. Funksional sınaqlarda 5xx olmayıb və dispetçer sorğuları uğurlu olub, lakin **məhdudiyyətsiz <300 ms tələbi tam sübut edilməyib**. Test uğurlu SOS-ları ayrıca ölçür: sürətli 429-lar ləng qəbul edilmiş sorğuları gizlətmir. `Server-Timing` client ölçməsini əvəz etmir. [Tam hesabat](docs/sos-flood.md) · [Xam ölçmələr](docs/sos-flood-results.json).
+
+## 4. Testləri təkrar işlətmək
+
+Repo kökündə, lokal virtual mühit aktiv olduqda:
 
 ```bash
-# Eyni SENSOR_KEY server və sensor mühitinə verilməlidir.
-python -m vision.worker --source path/to/video.mp4 --coverage full \
-  --publish --shelter s1 --api http://127.0.0.1:3000 --area-m2 600
-```
-
-`--save-preview` son kadrı insan qutuları və sayla göstərən şəkil yaradır. `--imgsz 640` daha sürətli rejim, `--imgsz 1280` isə kiçik hədəflər üçün sınana bilən rejimdir. Aşkarlama limitinə çatanda xəbərdarlıq qaytarılır və doluluq göndərişi bloklanır.
-
-`--area-m2` real görünən sahədir, piksel sahəsi deyil. `--roi roi.json` üçün format `[[x,y],[x,y],[x,y],...]`; şəxs qutusunun alt mərkəzi poliqonda sayılır. Kadrlar üzrə saylar bir-birinin üstünə yığılmır. Natamam görünüş ümumi tutum faizinə çevrilmir. Sıx izdiham/örtülmə üzrə ayrıca kalibrasiya lazımdır; bu versiya giriş-çıxış turniket sayğacı və çoxkameralı şəxs deduplikasiyası etmir.
-
-## Testlər
-
-```bash
+python -m pip install -r requirements-dev.txt
 python -m pytest -q
 node --test tests/*.test.mjs
-python tools/load_test.py --isolated
+
+# Normal yük: 1000 göndəriş, 24 şəxs, 8 paralel sorğu
+python tools/load_test.py --isolated --requests 1000
+
+# 600 eyni vaxtlı SOS + panel oxumaları + briqada əməliyyatları
+python tools/flood_test.py --requests 600 --output flood-results.json
+python tools/flood_test.py --requests 600 --cold --output flood-cold-results.json
 ```
 
-İzolyasiya edilmiş normal yük testi öz müvəqqəti HTTP serverini/DB-sini açıb bağlayır; nümayiş məlumatlarını dəyişmir. 1000 HTTP sorğusu, 24 şəxs, 8 paralel sorğu: 24 yeni SOS və 976 idempotent təkrar gözlənilir. Ayrı integration test 200 unikal şəxs + 200 təkrar göndərir. **Flood testi:** `python tools/flood_test.py --requests 600 --output flood-results.json` eyni anda 600 SOS, üstəlik dispetçer oxumaları və briqada təyinatları göndərir; orta gecikmə 300 ms-i keçərsə uğursuz çıxır. `--cold` yeni TCP bağlantılarının qurulmasını da ölçür. [Flood qoruması və ölçmə şərtləri](docs/sos-flood.md). Canlı serverə normal yük testi üçün `--isolated` əvəzinə `--base-url URL` istifadə edin; bu seçim həmin demo bazasına test məlumatı yazır. Əvvəlki nəticələr: [verification.md](docs/verification.md).
+Normal yük və flood alətləri öz müvəqqəti DB/serverlərini yaradır. Flood nəticələri lokal JSON-a yazılır. Funksional xəta **və ya hər hansı ölçülən qrupun orta gecikməsi ≥300 ms** olduqda flood əmri qeyri-sıfır kodla bitir. Bu davranış qəsdən saxlanılıb; testin uğursuzluğu gizlədilmir. Normal yük alətinə `--base-url` versəniz artıq göstərilən serverin məlumatlarını dəyişərsiniz.
 
-## Konfiqurasiya və təhlükəsizlik
+Hədəfli subtask testləri:
 
-`.env.example` dəyişənlərin nümunəsidir; tətbiq `.env` faylını avtomatik oxumur. Shell/servis mühitinə verin. Lokal demo üçün dəyişən tələb olunmur. Uvicorn istifadə edilirsə dotenv dəstəyi ilə `python -m uvicorn backend.app:app --env-file .env --host 127.0.0.1 --port 3000` işlədilə bilər.
+```bash
+python -m pytest -q tests/test_priority_accessibility.py tests/test_routing_fallback.py tests/test_sos_security.py
+node --test tests/priority-accessibility.test.mjs tests/routing-fallback.test.mjs
+```
 
-| Dəyişən | Məna |
+`3007856` commitində qeydə alınan nəticə **182 Python keçib, 2 buraxılıb; 47 JavaScript keçib**. Opsional video/audio asılılığı olmayan mühitdə əlaqəli testlər buraxıla bilər. Tam brauzer sınağı Playwright/Chromium tələb edir: `node tools/verify_capacity.mjs`. [Doluluq üzrə tələblər auditi](docs/requirements-audit.md).
+
+**Docker restart/persistence sınağı:** aşağıdakı alət bir süni SOS yaradır; ayrıca demo deployment-də işlədin. Python-un standart kitabxanası kifayətdir. Müvəqqəti faylda demo giriş tokeni saxlandığı üçün onu paylaşmayın; uğurlu `verify` onu silir.
+
+```bash
+python tools/container_smoke.py seed --state /tmp/digiminds-smoke.json
+docker compose down
+docker compose up --wait --wait-timeout 120
+python tools/container_smoke.py verify --state /tmp/digiminds-smoke.json
+```
+
+Windows-da `/tmp/digiminds-smoke.json` əvəzinə müvəqqəti qovluqdakı fayl yolunu verin. Port dəyişibsə hər iki Python əmrinə `--base-url http://127.0.0.1:3001` əlavə edin.
+
+GitHub Actions-da ayrıca `docker-smoke` işi image build, healthcheck, root olmayan istifadəçi, statik fayllar, JWT giriş, SOS dublikatı və konteyner yenidən yaradıldıqda DB/JWT açarının saxlanmasını yoxlayır. Digər işlər Python/JS, normal/flood yükü, Windows launcher və brauzer axınını yoxlayır. Workflow olması onun bütün ölçmələrdə keçdiyi demək deyil; [cari CI nəticəsini açın](https://github.com/mustafaqasimov/DigiMinds/actions).
+
+## 5. Konfiqurasiya
+
+| Dəyişən | İstifadə |
 | --- | --- |
-| `DEMO_MODE=0` | Demo hesabları və nasazlıq simulyasiyasını söndürür |
-| `ADMIN_PASSWORD` | Demo söndürüləndə ilkin `admin` üçün ən az 16 simvol |
-| `JWT_SECRET` | Production üçün ən az 32 baytlıq təsadüfi imza açarı; demo rejimi lokal `.jwt-key` yaradır |
-| `SECURE_COOKIES=1` | HTTPS yerləşdirmədə session cookie yalnız TLS ilə göndərilir |
-| `DATABASE_PATH` | SQLite faylı; standart `data/crisis.db` |
-| `SENSOR_KEY` | Kamera ölçmələri üçün ayrıca server açarı |
-| `ORS_API_KEY` | Opsional OpenRouteService açarı; lokal rejim tələb etmir |
-| `ORS_URL` | OpenRouteService foot-walking/geojson endpointi |
-| `ALLOWED_ORIGINS` | Vergüllə ayrılmış əlavə etibarlı origin-lər |
+| `DEMO_MODE` | `1`: demo hesabları/laboratoriya; `0`: demo bağlıdır |
+| `DATABASE_PATH` | Lokal standart `data/crisis.db`; Compose-də `/app/data/crisis.db` |
+| `JWT_SECRET` | Demo boşdursa DB yanında `.jwt-key` yaradılır; demo söndürüləndə ən az 32 baytlıq təsadüfi açar tələb olunur |
+| `ADMIN_PASSWORD` | `DEMO_MODE=0` üçün ilkin `admin` yaradılarkən ən az 16 simvol |
+| `SECURE_COOKIES` | TLS ilə yerləşdirmədə `1`; lokal HTTP nümayişində `0` |
+| `SENSOR_KEY` | YOLO sensorundan məntəqəyə ölçmə göndərişi üçün ortaq açar |
+| `ORS_API_KEY`, `ORS_URL` | Opsional OpenRouteService; boş açarla lokal marşrut işləyir |
+| `ALLOWED_ORIGINS` | Əlavə etibarlı origin-lər; bu, ayrıca cross-origin frontend/CORS quruluşu yaratmır |
+| `DIGIMINDS_PUBLIC_URL` | Demo üçün göstərilən xarici ünvan; özü TLS və proxy qurmur |
+| `HOST_BIND`, `PORT` | Yalnız Compose host bind/port parametrləri |
 
-PBKDF2 şifrə heşi, 8 saatlıq HS256 JWT + ləğv edilən server sessiyası, HttpOnly/SameSite cookie, CSRF header/origin yoxlaması, Pydantic doğrulama, 64 KiB body həddi, parametrli SQL və audit jurnalı var. JWT üçün imza, algorithm, issuer, audience, expiry və məcburi claim-lər yoxlanır; rol icazələri hər sorğuda bazadan oxunur. SOS üçün 1200 sorğu/dəq/IP, 60 sorğu/dəq/hesab (təkrarlar daxil), 8 yeni açar/dəq/hesab, server üzrə 16 qəbul edilmiş paralel sorğu və hesab üzrə 2 paralel sorğu həddi var. SOS ayrıca 4 işçi yerindən istifadə edir. SOS yaradan zəlzələ check-in endpointi də eyni limitləri paylaşır. Ümumi API 300/dəq/şəxs, giriş 12/dəq/IP və 8/dəq/hesab, guest 40/dəq/IP, sensor 120/dəq/məntəqə. `429` ilə `Retry-After` verilir; brauzerin SOS növbəsi bu müddətə əməl edir. Briqada təyinatı və ehtiyat məntəqə açılması `incident:act` icazəsi tələb edir.
+Güclü açarı lokal yaratmaq: `python -c "import secrets; print(secrets.token_urlsafe(48))"`. Açarları `.env` və ya servis mühitində saxlayın, Git-ə əlavə etməyin. `DEMO_MODE=0` təkbaşına real FHN inteqrasiyası və ya istehsal hazırlığı yaratmır. İctimai yerləşdirmə üçün HTTPS və şəbəkə qoruması lazımdır. Forwarded-header etibarı standart olaraq bağlıdır; reverse proxy istifadə ediləndə yalnız etibarlı proxy ayrıca konfiqurasiya olunmalıdır.
 
-Bu prototip tək prosesli SQLite və yaddaşdakı limiter istifadə edir. Horizontal miqyas üçün PostgreSQL/PostGIS, ortaq Redis limiter/pubsub, davamlı event queue və etibarlı şəxsiyyət doğrulaması ayrıca mərhələdir. Guest sessiyası insanın unikal şəxsiyyətini sübut etmir. Real FHN dispetçer sistemi ilə inteqrasiya yoxdur; göndəriş burada prototipin briqada statusunu dəyişir.
+## 6. Əlavə funksiyalar
 
-Arxitektura və challenge uyğunlaşdırması: [architecture.md](docs/architecture.md). Baxılan repolar və istifadə sərhədləri: [sources.md](docs/sources.md).
+Əsas Docker tətbiqini dayandırıb lokal runtime-da əlavə modulları başlada bilərsiniz; iki mühitin DB-si ayrıdır.
 
-## Səsli SOS — Azərbaycan dili
+| Funksiya | Başlatmaq / təlimat |
+| --- | --- |
+| Azərbaycan dilində Səsli SOS | Windows `SES_BASLAT.cmd`; digər mühitdə `python tools/start.py --voice`. İlk dəfə təxminən 1,6 GB model endirilir. [Səsli SOS](docs/voice-sos.md) |
+| YOLO video analizi | Windows `YOLO_BASLAT.cmd`; digər mühitdə `python tools/start.py --vision`. [Video yükləmə](docs/web-yolo.md), [model sınaqları](docs/yolo26-validation.md) |
+| Hər iki əlavə modul | `python tools/start.py --voice --vision` |
+| Telefon mikrofonu və titrəmə sensoru | `python tools/start.py --voice --https` və ya `BASLAT-SENSOR.cmd`; eyni Wi-Fi, OpenSSL və sertifikatın cihazda qəbul edilməsi tələb olunur |
+| Jüri üçün telefon pultu və alarm | `JURI_DEMO.cmd`; [nümayiş addımları](docs/jury-demo.md), [alarmın sərhədləri](docs/earthquake-drill.md) |
+| Vətəndaş profili | `/workspace.html#profile`; [profil və məlumat paylaşımı](docs/citizen-profile.md) |
 
-`SES_BASLAT.cmd` və ya `python tools/start.py --voice` ilə açın. Vətəndaş xəritəsində **Səsli SOS** → danışın → təklif edilən yardım növünü yoxlayın → **SOS göndər**. Mikrofon və hazır audio faylı dəstəklənir. Model ilk quraşdırmada endirilir, sonra serverdə lokal işləyir. [Quraşdırma, təqdimat və məhdudiyyətlər](docs/voice-sos.md).
+Səsli SOS: **Səs yazmağa başla → mikrofon icazəsi → danış → Bitir və mətnə çevir → mətni/növü/mövqeyi yoxla → SOS göndər**. Model server kompüterində işləyir, hər telefon ayrıca model yükləmir. Serverə çıxış yoxdursa yeni səsin tanınması işləmir; əl ilə SOS oflayn növbədə qala bilər. Danışıq tempi panika diaqnozu deyil.
+
+YOLO veb yükləməsi **100 MB / 60 saniyə / Full HD / 60 FPS** ilə məhduddur. Video yükləmək məntəqənin doluluğunu avtomatik dəyişmir. Tam əhatəsi təsdiqlənmiş ayrıca sensor üçün `vision.worker`, `--publish`, `--coverage full`, `--shelter` və `SENSOR_KEY` lazımdır; nəfər/m² üçün real sahə kalibrasiyası tələb olunur.
+
+Titrəmə modulu telefon siqnallarını bir neçə cihaz üzrə müqayisə edir, vətəndaşın **Təhlükəsizəm / Yardım lazımdır / Binada qalmışam** cavablarını qəbul edir. Google zəlzələ xəbərdarlığından açıq inteqrasiya yoxdur. Kütləvi tədbir doluluq proqnozu və istilik xəritəsi də mövcuddur; tədbirdən təxliyədə 6% iştirakçı fərziyyəsi real müşahidə ilə kalibrasiya edilməmiş planlaşdırma modelidir.
+
+## 7. Tez-tez rast gəlinən problemlər
+
+- **Docker daemon-a qoşulmur:** Docker Desktop/Engine-i başladın, `docker info` yoxlayın. Köhnə Compose-də `--wait` tanınmırsa Compose v2-ni yeniləyin.
+- **Port artıq istifadə olunur:** Compose üçün `PORT` dəyişin; launcher-in çap etdiyi portu istifadə edin. `127.0.0.1` hər cihazın özünü göstərir, telefon üçün kompüterin LAN IP-si lazımdır.
+- **Mikrofon düyməsi aktiv deyil:** səs modelini ayrıca quraşdırın, `/api/voice/status` yoxlayın. Telefonun adi `http://192.168...` ünvanında mikrofon məhdudlaşdırıla bilər; HTTPS və icazə lazımdır.
+- **401 və ya köhnə sessiya:** JWT yenilənməsindən sonra yenidən daxil olun. Docker volume/JWT açarı silinibsə əvvəlki tokenlər etibarsızdır.
+- **429:** qəbul və ya trafik limiti aşılıb; `Retry-After` qədər gözləyin. Bu cavab SOS-un qeydə alındığını bildirmir.
+- **403:** istifadəçi rolunu, `Origin` və `X-Requested-With: DigiMinds` / Bearer autentifikasiyasını yoxlayın.
+- **Əlçatan marşrut yoxdur:** başlanğıcın demo qrafına uyğunluğunu, yol atributlarını və məntəqə doluluğunu yoxlayın. Sistem təhlükəsizliyi təsdiqlənməmiş yol uydurmur.
+- **Flood testi qeyri-sıfır kodla bitir:** JSON-dakı funksional yoxlama və gecikmə qruplarını ayrı oxuyun. <300 ms hədəfi cari ölçmələrdə bütün ssenarilər üçün keçmir.
+
+## 8. Texniki istinadlar
+
+[Arxitektura](docs/architecture.md) · [Tələblər auditi](docs/requirements-audit.md) · [Prioritet rol](docs/priority-accessibility.md) · [Circuit breaker](docs/routing-resilience.md) · [SOS Flood və JWT](docs/sos-flood.md) · [Əvvəlki yoxlamalar](docs/verification.md) · [Mənbələr](docs/sources.md)
+
+Docker davranışı: [Compose up](https://docs.docker.com/reference/cli/docker/compose/up/), [Dockerfile və healthcheck](https://docs.docker.com/reference/dockerfile/), [Compose mühit dəyişənləri](https://docs.docker.com/compose/how-tos/environment-variables/set-environment-variables/).

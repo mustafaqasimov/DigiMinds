@@ -1,0 +1,31 @@
+services:
+  app:
+    build: .
+    ports:
+      - "${HOST_BIND:-127.0.0.1}:${PORT:-3000}:3000"
+    environment:
+      DEMO_MODE: "${DEMO_MODE:-1}"
+      DATABASE_PATH: /app/data/crisis.db
+      SECURE_COOKIES: "${SECURE_COOKIES:-0}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
+      JWT_SECRET: "${JWT_SECRET:-}"
+      SENSOR_KEY: "${SENSOR_KEY:-}"
+      ORS_API_KEY: "${ORS_API_KEY:-}"
+      ORS_URL: "${ORS_URL:-https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson}"
+      ALLOWED_ORIGINS: "${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}"
+      DIGIMINDS_PUBLIC_URL: "${DIGIMINDS_PUBLIC_URL:-}"
+    volumes:
+      - app_data:/app/data
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 20s
+
+volumes:
+  app_data:

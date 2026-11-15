@@ -1,0 +1,20 @@
+# Explicit allowlist: never ship databases, JWT keys, TLS keys, .env or models.
+**
+!Dockerfile
+!requirements.txt
+!backend/
+!backend/**
+!frontend/
+!frontend/**
+!speech/
+!speech/**
+!vision/
+!vision/**
+**/__pycache__/
+**/*.pyc
+**/.env*
+**/*.jwt-key
+**/*.pem
+**/*.key
+**/*.db*
+**/*.pt
