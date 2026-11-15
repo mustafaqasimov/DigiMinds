@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from .store import Store, uid
 from .security import Limiter, password_hash, check_password, token_hash, PERMISSIONS
 from .geo import blocked_polygons, crosses_closure
+from .profiles import ProfileUpdate, profile_record, shared_profiles
 
 ROOT=Path(__file__).resolve().parent.parent
 
@@ -186,6 +187,55 @@ def create_app(db_path=None,demo=None):
 
     @application.get('/api/state')
     def state(request:Request):return store.snapshot(require(request))
+
+    def citizen(request):
+        u = require(request)
+        if u['role'] != 'citizen':raise HTTPException(403, 'citizen_profile_only')
+        return u
+
+    @application.get('/api/me/profile')
+    def get_profile(request:Request):
+        u = citizen(request)
+        with store.lock:return profile_record(store, u['id'])
+
+    @application.put('/api/me/profile')
+    def update_profile(body:ProfileUpdate, request:Request):
+        u = citizen(request)
+        with store.lock, store.db:
+            current = profile_record(store, u['id'])
+            if body.version != current['version']:raise HTTPException(409, 'profile_changed')
+            profile = body.profile.model_dump()
+            store.put('profile', {'id': u['id'], 'profile': profile, 'version': current['version']+1, 'updated_at': store.clock()})
+            store.audit(u['id'], 'profile.saved', u['id'])
+            if profile['share_on_sos'] != current['profile']['share_on_sos']:
+                store.audit(u['id'], 'profile.sharing_enabled' if profile['share_on_sos'] else 'profile.sharing_disabled', u['id'])
+            return profile_record(store, u['id'])
+
+    @application.delete('/api/me/profile')
+    def delete_profile(request:Request, version:int):
+        u = citizen(request)
+        with store.lock, store.db:
+            current = profile_record(store, u['id'])
+            if version != current['version']:raise HTTPException(409, 'profile_changed')
+            # Keep only a version tombstone, so a stale tab cannot recreate deleted data.
+            store.put('profile', {'id': u['id'], 'profile': None, 'version': current['version']+1, 'updated_at': None})
+            store.audit(u['id'], 'profile.deleted', u['id'])
+            return profile_record(store, u['id'])
+
+    @application.get('/api/incidents/{id}/assistance')
+    def incident_assistance(id:str, request:Request):
+        u = require(request)
+        with store.lock, store.db:
+            assigned = any(t['id']==u.get('team_id') and t.get('incident_id')==id and t['status']!='available' for t in store.objects('team'))
+            if 'incident:act' not in u['permissions'] and not ('assignment:read' in u['permissions'] and assigned):
+                raise HTTPException(403, 'permission_denied')
+            if not store.db.execute('SELECT id FROM incidents WHERE id=?', (id,)).fetchone():raise HTTPException(404, 'not_found')
+            people = shared_profiles(store, id)
+            # Audit metadata only: never copy personal fields into logs or WebSocket state.
+            for person in people:
+                owner = store.db.execute('SELECT user_id FROM reports WHERE id=?', (person['report_id'],)).fetchone()[0]
+                store.audit(u['id'], 'profile.accessed', owner)
+            return {'incident_id': id, 'people': people}
 
     @application.get('/api/map')
     def map_data():return store.snapshot()
