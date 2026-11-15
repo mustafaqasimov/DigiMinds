@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="az"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#132739"><title>DigiMinds · Seysmik sensor</title>
+<style>
+:root{--ink:#25352e;--muted:#6f7a72;--line:#e3e7df;--red:#cc4c3a;--green:#268265;--amber:#a56c12;--bg:#f4f5ef}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+main{max-width:520px;margin:0 auto;padding:18px 16px 40px;display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:center;justify-content:space-between}header b{font-size:15px;letter-spacing:.04em}header small{color:var(--muted);font-size:11px}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}
+label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px}input,select{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:14px;width:100%;cursor:pointer}
+.primary{background:#132739;color:#fff}.ghost{background:#eef0ea;color:var(--ink);font-weight:500;padding:10px}
+#status{text-align:center;padding:22px 14px;border-radius:12px;background:#e7f2ec;color:var(--green);transition:background .2s}
+#status b{display:block;font-size:22px}#status small{display:block;margin-top:6px;font-size:12px;opacity:.85}
+#status.shake{background:#fde6c9;color:#8a4f05}#status.confirmed{background:var(--red);color:#fff;animation:pulse 1s infinite}
+@keyframes pulse{50%{filter:brightness(1.15)}}
+canvas{width:100%;height:150px;display:block;background:#fbfcf8;border-radius:8px}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;text-align:center}.metrics b{display:block;font-size:17px}.metrics span{font-size:10px;color:var(--muted)}
+.diag{font-size:12px;line-height:1.7;color:var(--muted)}.ok{color:var(--green)}.bad{color:var(--red)}
+[hidden]{display:none!important}
+</style></head><body><main>
+<header><span><b>DIGIMINDS</b><br><small>Seysmik sensor · təlim rejimi</small></span><small id="conn">qoşulmayıb</small></header>
+<section id="status"><b>Hazır deyil</b><small>Sensoru başlatmaq üçün aşağıdakı düyməni basın</small></section>
+<section class="card" id="setup">
+ <div class="row"><div><label for="label">Cihazın adı</label><input id="label" maxlength="30"></div>
+ <div><label for="place">Yerləşmə (stol)</label><select id="place">
+  <option value="n3_4">Mərkəz Parkı</option><option value="n3_1">Qərb</option><option value="n2_7">Şərq</option><option value="n5_3">Şimal</option><option value="n1_5">Sahil</option>
+ </select></div></div>
+ <p class="diag">Telefonu stolun üstünə düz qoyun, ekranı açıq saxlayın. Stol silkələnəndə titrəmə aşkarlanır. Server eyni anda bir neçə cihazdan siqnal alanda zəlzələ xəbərdarlığı yaradır.</p>
+ <button class="primary" id="start">Sensoru başlat</button>
+</section>
+<section class="card" id="live" hidden>
+ <canvas id="wave" width="960" height="300" aria-label="Titrəmə qrafiki"></canvas>
+ <div class="metrics"><div><b id="m-level">0.00</b><span>səviyyə m/s²</span></div><div><b id="m-ratio">0.0</b><span>STA/LTA</span></div><div><b id="m-devices">–</b><span>onlayn cihaz</span></div></div>
+</section>
+<section class="card diag" id="diag"></section>
+<button class="ghost" id="test" hidden>Sınaq siqnalı göndər (simulyasiya)</button>
+</main><script type="module" src="/sensor.js"></script></body></html>

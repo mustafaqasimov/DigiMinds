@@ -68,6 +68,38 @@ Vətəndaş xəritəsində sağ yuxarı hesab düyməsi → **Prioritet SOS rolu
 
 Server və oflayn brauzer eyni məhdudiyyətləri tətbiq edir. Əlçatanlıq məlumatları **simulyasiyadır**, real küçələr üzrə təsdiq deyil. [İstifadə, məlumat müqaviləsi və testlər](docs/priority-accessibility.md).
 
+## Titrəşimə əsaslanan zəlzələ siqnalı və vətəndaşın geri dönüşü
+
+Telefonlar `/sensor` səhifəsində akselerometr məlumatından STA/LTA trigger-i hesablayır. Bu, MyShake və Earthquake Network-un istifadə etdiyi yanaşmadır. Server **10 saniyə ərzində, 1 km radiusda ≥3 fərqli cihazdan** siqnal alanda titrəməni təsdiqləyir. Tək cihazın siqnalı, məsələn telefonun düşməsi, zəlzələ sayılmır. Tələb olunan cihaz sayı laboratoriyada 1-4 arasında seçilir.
+
+Titrəmə təsdiqlənəndə:
+- hamıya görünən **ZƏLZƏLƏ XƏBƏRDARLIĞI** çıxır;
+- demo rejimində komandanın zəlzələ təlimi alarmı otağa qoşulmuş bütün cihazlarda avtomatik çalır;
+- vətəndaşdan **"Vəziyyətiniz necədir?"** soruşulur: **Təhlükəsizəm**, **Yardım lazımdır** (tibbi SOS kimi gedir), **Binada qalmışam** (dağıntı SOS kimi gedir);
+- dispetçer cavabların sayını, xəritədə isə yardım istəyən nöqtələri görür.
+
+**Başlatmaq:** `BASLAT-SENSOR.cmd` (və ya `python tools/start.py --https`). Telefonlar hərəkət sensorunu yalnız HTTPS üzərindən verir, ona görə self-signed sertifikat yaradılır. Telefonlarda terminalda çap olunan `https://<IP>:3000/sensor` ünvanı açılır və brauzerdə "Advanced → Proceed" seçilir.
+
+**Google:** Google-un Android zəlzələ xəbərdarlığını üçüncü tərəf tətbiqinə ötürən açıq API yoxdur ([araşdırma](docs/earthquake-drill.md)). Ona görə bu siqnal DigiMinds-in öz sensor şəbəkəsindən gəlir. Bu, rəsmi erkən xəbərdarlıq xidməti deyil.
+
+## İstilik xəritəsi: toplaşma məntəqələrinin doluluğu
+
+"Xəritə qatları" menyusundakı **İstilik xəritəsi** hər açıq məntəqənin ətrafında doluluğa görə rənglənmiş bir işıq ləkəsi göstərir: yaşıl (boş) → sarı (70%) → narıncı (90%) → qırmızı (100%+). Yaxınlıqda tədbir varsa, rəng tədbiri nəzərə alan potensial doluluğu göstərir. Vətəndaş yalnız 2.5 km daxilindəki məntəqələri görür. Legenda "Legenda" düyməsindədir.
+
+## Kütləvi tədbirlər və toplaşma məntəqələrinin potensial doluluğu
+
+Konsert, futbol matçı, festival və mitinq kimi tədbirlər yer, gözlənilən iştirakçı sayı və vaxt ilə qeyd olunur. Hər tədbir üçün hazırda yerində olan insan sayı vaxta görə dəyişir: başlamazdan 90 dəqiqə əvvəl gəliş başlayır, tədbir boyu tam say saxlanır, bitəndən sonra 45 dəqiqə ərzində dağılış gedir.
+
+Model təxliyə olarsa iştirakçıların 6%-nin toplaşma məntəqəsinə gedəcəyini fərz edir. Bu insanlar 2 km daxilindəki açıq məntəqələrə piyada yol məsafəsinin kvadratına tərs mütənasib paylanır (qravitasiya modeli). Hesablama marşrutla eyni yol qrafında aparılır, ona görə bağlı yollar proqnozu dəyişir. Hər məntəqə üçün **hazırkı → potensial doluluq faizi** göstərilir: normal (<70%), nəzarət (70-90%), yönləndirmə dayanır (≥90%), tutumu aşır (>100%). 90% həddini saxlamaq üçün nə qədər əlavə yer lazım olduğu da hesablanır və ən yaxın ehtiyat məntəqə tövsiyə olunur.
+
+- **Aydın mesajlar:** hər tədbirin təsviri, yəni nə ilə bağlı olduğu göstərilir. Detal panelində **"Potensial risk proqnozu: hadisə baş verməyib"** bildirişi, tədbirin növünə görə baş verə biləcək hadisələr (izdiham, çıxışlarda tıxac, tibbi hallar, yanğın, itkin uşaqlar və s.) və risk səviyyəsi var. **Ehtiyat zona harada ayrılmalıdır** bölməsində ehtiyat məntəqə istiqamət, piyada məsafə, tutum və qəbul edəcəyi insan sayı ilə yazılır. Bir zona kifayət etmirsə, növbəti zona və qalan çatışmazlıq göstərilir, seçilmiş zonalar xəritədə işarələnir.
+- **Qaynar xətt:** tədbir detalında və vətəndaşın yaxınlıqdakı tədbir kartında `tel:112` düyməsi var, əlavə olaraq 101, 102, 103 nömrələri göstərilir. Telefonda düymə zəng ekranını açır, zəngi istifadəçi özü təsdiqləyir.
+- **Dispetçer:** "Tədbirlər" bölməsində siyahı və proqnoz cədvəli var. **Ehtiyat məntəqəni hazırla** düyməsi tövsiyə olunan məntəqəni açır, burada yeni tədbir də əlavə etmək olar. Xəritədə tədbirin təsir dairəsi və məntəqələrə axın xətləri görünür.
+- **Vətəndaş:** 1.5 km daxilində davam edən və ya 6 saat ərzində başlayacaq tədbir barədə xəbərdarlıq kartı çıxır. Məntəqə detalında tədbirlər nəzərə alınmaqla potensial doluluq göstərilir.
+- **Demo:** bazada üç sintetik tədbir yaradılır: davam edən futbol matçı, 2 saat sonra başlayacaq konsert və sabahkı festival. Laboratoriyadakı **Demo tədbirlərini yenilə** düyməsi onları cari vaxta görə yenidən qurur.
+
+Bu proqnoz sintetik planlaşdırma modelidir. 6% payı və paylanma qaydası real müşahidə ilə kalibrasiya edilməyib.
+
 ## Vətəndaş təhlükəsizlik profili
 
 Vətəndaş panelində **Təhlükəsizlik profilim** düyməsi və ya `/#profile` açın. Yaş, hərəkət/əlçatanlıq ehtiyacları, nəqliyyat, ailə və təcili əlaqəni ayrı kartlarda daxil edib saxlayın. Şəxsi hazırlıq siyahısı bu seçimlərə uyğun dəyişir. Paylaşma standart olaraq bağlıdır; razılıq veriləndə yalnız aktiv SOS-a baxan səlahiyyətli operator və təyin edilmiş briqada yardım profilini aça bilir.
