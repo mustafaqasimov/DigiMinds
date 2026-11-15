@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from .store import Store, uid
 from .security import Limiter, password_hash, check_password, token_hash, PERMISSIONS
 from .geo import blocked_polygons, crosses_closure
+from .drills import install_drills
 
 ROOT=Path(__file__).resolve().parent.parent
 
@@ -358,6 +359,7 @@ def create_app(db_path=None,demo=None):
     @application.get('/')
     def index():return FileResponse(ROOT/'frontend/index.html')
 
+    install_drills(application,store,require,user_from,origin_ok,throttle,demo)
     application.mount('/',StaticFiles(directory=ROOT/'frontend',html=True),name='frontend')
     return application
 

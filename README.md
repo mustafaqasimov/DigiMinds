@@ -33,6 +33,9 @@ Demo rejimində **Dispetçer → demo hesab seçin**. Hesablar: `demo-dispatcher
 
 ## Hazır funksiyalar
 
+**Zəlzələ təlimi:** eyni otağa qoşulan cihazlarda sınaq mesajı ilə həyəcan ekranı
+və səs, qəbul göstəriciləri və ümumi dayandırma. [Təqdimat təlimatı və Google inteqrasiyasının sərhədləri](docs/earthquake-drill.md).
+
 | Hissə | Davranış |
 | --- | --- |
 | Vətəndaş | Xəritədən mövqe/GPS, uyğun məntəqələr, doluluq, piyada marşrutu, 4 SOS növü, “Təhlükəsizəm” |

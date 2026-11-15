@@ -2,7 +2,10 @@ import {translations} from './i18n.js';
 import {uiTranslations} from './ui-i18n.js';
 import {renderLayout} from './ui.js';
 import {mapView} from './map.js';
+import {createEarthquakeDemo} from './earthquake.js';
+import {quakeMessages} from './earthquake-i18n.js';
 for (const locale of Object.keys(uiTranslations)) Object.assign(translations[locale], uiTranslations[locale]);
+for (const locale of Object.keys(quakeMessages)) translations[locale].earthquakeDemo=quakeMessages[locale].launch;
 import {localRoutes,outbox,cache} from './offline.js';
 const $=s=>document.querySelector(s),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let lang=localStorage.getItem('dm_lang')||'az';if(!translations[lang])lang='az';
@@ -19,6 +22,7 @@ const fmtTime=v=>new Date(v*1000).toLocaleTimeString(lang==='az'?'az-AZ':lang===
 let toastTimer;function toast(message){$('#toast').textContent=message;$('#toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),4500);}
 async function api(path,options={}){let r;try{r=await fetch('/api'+path,{...options,headers:{'Content-Type':'application/json','X-Requested-With':'DigiMinds',...(options.headers||{})},signal:options.signal||AbortSignal.timeout(7000)});}catch(e){throw Object.assign(Error('network'),{network:true});}let data;try{data=await r.json();}catch{data={detail:r.statusText};}if(!r.ok)throw Object.assign(Error(typeof data.detail==='string'?data.detail:'invalid_input'),{status:r.status});return data;}
 function errorToast(e){toast(e.message==='outside_demo_area'?t('outOfArea'):e.status===429?t('rateLimit'):['no_available_team','no_reserve_shelter'].includes(e.message)?t('unavailable'):t('error')+' · '+e.message);}
+const quake=createEarthquakeDemo({api,beforeOpen:()=>{ui.dialog=null;render();},onSOS:()=>{ui.dialog='sos';render();}});
 function setConnection(next){if(connection!==next){connection=next;render();}}
 function consume(s){const changed=!state||state.revision!==s.revision||s.shelters.some((v,i)=>v.stale!==state.shelters[i]?.stale);const roleChanged=s.viewer&&user?.role!==s.viewer.role;state=s;if(s.viewer){user=s.viewer;if(roleChanged)view=operator()?'dispatcher':can('assignment:read')?'responder':'citizen';if(view!=='citizen'&&!operator()&&!can('assignment:read'))view='citizen';}const pub={map:s.map,roads:s.roads,shelters:s.shelters,config:s.config,server_time:s.server_time,revision:s.revision,dataset:s.dataset,incidents:[],stats:s.stats};cache.put('map',pub).catch(()=>{});const signature=JSON.stringify([s.roads.filter(r=>r.blocked).map(r=>r.id),s.shelters.map(x=>[x.id,x.status,x.occupancy,x.capacity])]);if(lastMapSignature&&lastMapSignature!==signature&&route){clearTimeout(autoRouteTimer);autoRouteTimer=setTimeout(()=>findRoute(true),180);}lastMapSignature=signature;if(changed)render();}
 async function refresh(){try{if(!healthReady){health=await api('/health');healthReady=true;}consume(await api('/state'));if(connection!=='live')setConnection('polling');if(user&&!ws&&!reconnectTimer)connect();await flush();}catch(e){if(e.network)setConnection('offline');else if(e.status===401){closeSocket();setConnection('offline');}}}
@@ -35,6 +39,7 @@ async function bootstrap(){
 }
 // Keep drafts, keyboard focus, and panel scroll stable during live snapshots.
 function render(){
+ quake.update({user,enabled:health.demo,lang});
  if(!state)return;
  if(ui.dialog==='lab'&&!can('demo:write')||ui.dialog==='admin'&&!can('role:write'))ui.dialog=null;
  document.documentElement.lang=lang;
@@ -85,6 +90,7 @@ document.addEventListener('click',async e=>{
   if(b.dataset.team){await api('/teams/'+b.dataset.team,{method:'PATCH',body:JSON.stringify({status:b.dataset.status})});await refresh();return;}
   if(b.dataset.scenario){const k=b.dataset.scenario;await api('/demo/'+k,{method:'POST',body:JSON.stringify({enabled:k==='sos_wave'?true:!state.failures?.[k]})});await refresh();return;}
   switch(b.dataset.action){
+   case'earthquake':quake.open();break;
    case'login':ui.dialog='login';render();break;
    case'close-modal':ui.dialog=null;render();break;
    case'logout':resetWorkspace();await api('/auth/logout',{method:'POST'});closeSocket();await api('/auth/guest',{method:'POST'});await identity();await refresh();connect();await findRoute();break;
@@ -115,6 +121,7 @@ bootstrap().catch(errorToast);
 
 document.addEventListener('input',event=>{if(event.target.id==='workspace-search'){ui.search=event.target.value;render();}});
 document.addEventListener('keydown',event=>{
+ if(document.querySelector('#earthquake-root dialog[open]'))return;
  const dialog=document.querySelector('[role="dialog"]');
  if(event.key==='Escape'){ui.dialog=null;ui.selected=null;ui.layerMenu=false;ui.chooseLocation=false;ui.editRoads=false;render();return;}
  if(dialog&&event.key==='Tab'){
