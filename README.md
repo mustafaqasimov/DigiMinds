@@ -140,3 +140,7 @@ PBKDF2 şifrə heşi, 8 saatlıq server sessiyası, HttpOnly/SameSite cookie, CS
 Bu prototip tək prosesli SQLite və yaddaşdakı limiter istifadə edir. Horizontal miqyas üçün PostgreSQL/PostGIS, ortaq Redis limiter/pubsub, davamlı event queue və etibarlı şəxsiyyət doğrulaması ayrıca mərhələdir. Guest sessiyası insanın unikal şəxsiyyətini sübut etmir. Real FHN dispetçer sistemi ilə inteqrasiya yoxdur; göndəriş burada prototipin briqada statusunu dəyişir.
 
 Arxitektura və challenge uyğunlaşdırması: [architecture.md](docs/architecture.md). Baxılan repolar və istifadə sərhədləri: [sources.md](docs/sources.md).
+
+## Səsli SOS — Azərbaycan dili
+
+`SES_BASLAT.cmd` və ya `python tools/start.py --voice` ilə açın. Vətəndaş xəritəsində **Səsli SOS** → danışın → təklif edilən yardım növünü yoxlayın → **SOS göndər**. Mikrofon və hazır audio faylı dəstəklənir. Model ilk quraşdırmada endirilir, sonra serverdə lokal işləyir. [Quraşdırma, təqdimat və məhdudiyyətlər](docs/voice-sos.md).

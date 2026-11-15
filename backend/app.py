@@ -20,6 +20,8 @@ from .drills import install_drills
 from .accessibility import CITIZEN_ROLES, needs_accessible
 from .profiles import ProfileUpdate, profile_record, shared_profiles
 from .vision_jobs import VisionJobs, install_vision, MAX_UPLOAD
+from .voice import VoiceService, VoiceNote, install_voice
+from speech.config import MAX_UPLOAD as MAX_VOICE_UPLOAD
 
 ROOT=Path(__file__).resolve().parent.parent
 
@@ -41,6 +43,7 @@ class SOS(StrictModel):
     lng:float=Field(ge=-180,le=180)
     incident_id:str|None=Field(default=None,max_length=40)
     client_time:float|None=None
+    voice_note:VoiceNote|None=None
 
 
 class Occupancy(StrictModel):
@@ -78,14 +81,17 @@ def create_app(db_path=None,demo=None):
     store=Store(db_path or os.getenv('DATABASE_PATH',str(ROOT/'data/crisis.db')))
     limiter=Limiter()
     vision_jobs=VisionJobs(ROOT,Path(db_path or os.getenv('DATABASE_PATH',str(ROOT/'data/crisis.db'))).resolve().parent/'vision-jobs')
+    voice_service=VoiceService(ROOT,Path(db_path or os.getenv('DATABASE_PATH',str(ROOT/'data/crisis.db'))).resolve().parent/'voice-jobs')
     @contextlib.asynccontextmanager
     async def lifespan(application):
         try:
             yield
         finally:
             vision_jobs.close()
+            voice_service.close()
     application=FastAPI(title='DigiMinds · Urban Crisis Engine',version='0.1.0',lifespan=lifespan)
     application.state.vision_jobs=vision_jobs
+    application.state.voice_service=voice_service
     application.state.store=store;application.state.limiter=limiter
     application.state.routing_circuit=CircuitBreaker()
     application.state.provider_timeout=4.5
@@ -124,11 +130,12 @@ def create_app(db_path=None,demo=None):
                 return Response('Invalid content length',400)
             if declared<0:return Response('Invalid content length',400)
             video_upload=request.method=='POST' and request.url.path=='/api/vision/jobs'
-            body_limit=MAX_UPLOAD if video_upload else 65536
+            voice_upload=request.method=='POST' and request.url.path=='/api/voice/transcribe'
+            body_limit=MAX_UPLOAD if video_upload else MAX_VOICE_UPLOAD if voice_upload else 65536
             if declared>body_limit:return Response('Body too large',413)
             # Also enforce the bound for chunked requests without Content-Length.
             # Video route authenticates first and streams to disk with its own byte cap.
-            if not video_upload:
+            if not (video_upload or voice_upload):
                 chunks=[];received=0
                 async for chunk in request.stream():
                     received+=len(chunk)
@@ -281,6 +288,19 @@ def create_app(db_path=None,demo=None):
     @application.get('/api/map')
     def map_data():return store.snapshot()
 
+    @application.get('/api/incidents/{id}/voice-notes')
+    def voice_notes(id:str,request:Request):
+        u=require(request)
+        with store.lock,store.db:
+            assigned=any(t['id']==u.get('team_id') and t.get('incident_id')==id and t['status']!='available' for t in store.objects('team'))
+            if 'incident:act' not in u['permissions'] and not ('assignment:read' in u['permissions'] and assigned):
+                raise HTTPException(403,'permission_denied')
+            if not store.db.execute('SELECT id FROM incidents WHERE id=?',(id,)).fetchone():raise HTTPException(404,'not_found')
+            reports=store.db.execute('SELECT id FROM reports WHERE incident_id=? ORDER BY created DESC LIMIT 50',(id,)).fetchall()
+            notes=[note for row in reports if (note:=store.get('voice_note',row['id']))]
+            store.audit(u['id'],'voice_notes.accessed',id)
+            return {'notes':notes}
+
     @application.post('/api/sos')
     def sos(body:SOS,request:Request,response:Response):
         u=require(request,'sos:create')
@@ -289,7 +309,11 @@ def create_app(db_path=None,demo=None):
             old=store.db.execute('SELECT id FROM reports WHERE user_id=? AND event_key=?',(u['id'],body.event_key)).fetchone()
         if not old:throttle('sos:'+u['id'],8)
         try:
-            r,created=store.report(u['id'],**body.model_dump())
+            with store.lock,store.db:
+                data=body.model_dump();voice_note=data.pop('voice_note')
+                r,created=store.report(u['id'],**data)
+                if created and voice_note:
+                    store.put('voice_note',{'id':r['id'],**voice_note,'created_at':r['created'],'user_confirmed':True})
         except ValueError as exc:raise HTTPException(409,str(exc))
         response.status_code=201 if created else 200
         return {'report':{k:v for k,v in r.items() if k!='user_id'},'created':created}
@@ -496,6 +520,7 @@ def create_app(db_path=None,demo=None):
 
     install_drills(application,store,require,user_from,origin_ok,throttle,demo)
     install_vision(application,vision_jobs,require,throttle,demo)
+    install_voice(application,voice_service,require,throttle)
     application.mount('/',StaticFiles(directory=ROOT/'frontend',html=True),name='frontend')
     return application
 

@@ -31,9 +31,9 @@ def healthy(url):
         return False
 
 
-def vision_ready(url):
+def feature_ready(url,feature):
     try:
-        with HTTP.open(url+'/api/vision/status', timeout=2) as response:
+        with HTTP.open(url+'/api/'+feature+'/status', timeout=2) as response:
             return json.loads(response.read(4096)).get('available') is True
     except (OSError, ValueError, urllib.error.URLError):
         return False
@@ -50,18 +50,18 @@ def choose_port(preferred, host='127.0.0.1'):
     raise RuntimeError('3000-3010 portlari mesguldur. --port ile basqa port secin.')
 
 
-def prepare_python(vision=False):
+def prepare_python(vision=False,voice=False):
     env_dir = ROOT / '.venv'
     executable = env_dir / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
     if not executable.is_file():
         print('[1/3] Python muhiti yaradilir...', flush=True)
         subprocess.run([sys.executable, '-m', 'venv', str(env_dir)], check=True, cwd=ROOT)
-    requirements = ROOT / ('requirements-vision.txt' if vision else 'requirements.txt')
-    stamp = env_dir / ('.digiminds-vision.sha256' if vision else '.digiminds-requirements.sha256')
+    requirements = ROOT / ('requirements-voice.txt' if voice else 'requirements-vision.txt' if vision else 'requirements.txt')
+    stamp = env_dir / ('.digiminds-voice.sha256' if voice else '.digiminds-vision.sha256' if vision else '.digiminds-requirements.sha256')
     signature = hashlib.sha256(requirements.read_bytes()+(ROOT/'requirements.txt').read_bytes()).hexdigest()
     matches = stamp.is_file() and stamp.read_text().strip() == signature
     imports_work = subprocess.run(
-        [str(executable), '-c', 'import fastapi, uvicorn, httpx, pydantic'+('; import ultralytics, imageio_ffmpeg' if vision else '')],
+        [str(executable), '-c', 'import fastapi, uvicorn, httpx, pydantic'+('; import faster_whisper, imageio_ffmpeg' if voice else '; import ultralytics, imageio_ffmpeg' if vision else '')],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     ).returncode == 0
     if not matches or not imports_work:
@@ -75,6 +75,8 @@ def prepare_python(vision=False):
         print('YOLO26 modeli ilk defe yuklenir...', flush=True)
         subprocess.run([str(executable), '-c', "from ultralytics import YOLO; YOLO('yolo26n.pt')"],
                        check=True, cwd=ROOT)
+    if voice:
+        subprocess.run([str(executable), '-m', 'speech.setup'], check=True, cwd=ROOT)
     return executable
 
 
@@ -86,6 +88,7 @@ def main():
     parser.add_argument('--lan', action='store_true', help='Allow devices on your local network to connect')
     parser.add_argument('--jury', action='store_true', help='Open the jury presentation screen')
     parser.add_argument('--vision', action='store_true', help='Install YOLO and open the video analysis page')
+    parser.add_argument('--voice', action='store_true', help='Install Azerbaijani speech recognition and open voice SOS')
     args = parser.parse_args()
     if sys.version_info < (3, 12):
         raise RuntimeError('Python 3.12 ve ya daha yeni versiya lazimdir.')
@@ -93,9 +96,10 @@ def main():
         parser.error('Port 1024..65535 araliginda olmalidir')
 
     default_url = f'http://127.0.0.1:{args.port}'
-    entry='/vision.html' if args.vision else '/presentation.html' if args.jury else '/'
+    entry='/workspace.html#voice' if args.voice else '/vision.html' if args.vision else '/presentation.html' if args.jury else '/'
     executable = prepare_python(vision=True) if args.vision else None
-    if not args.smoke_test and not args.lan and healthy(default_url) and (not args.vision or vision_ready(default_url)):
+    if args.voice:executable=prepare_python(voice=True)
+    if not args.smoke_test and not args.lan and healthy(default_url) and (not args.vision or feature_ready(default_url,'vision')) and (not args.voice or feature_ready(default_url,'voice')):
         print(f'DigiMinds artiq isleyir: {default_url}', flush=True)
         if not args.no_browser:
             webbrowser.open(default_url+entry)

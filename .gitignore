@@ -9,3 +9,5 @@ test-results/
 *.mp4
 *.avi
 data/vision-jobs/
+data/voice-jobs/
+data/speech-model/
