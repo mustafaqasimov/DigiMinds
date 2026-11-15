@@ -108,7 +108,7 @@ def prepare_python(vision=False,voice=False):
     signature = hashlib.sha256(requirements.read_bytes()+(ROOT/'requirements.txt').read_bytes()).hexdigest()
     matches = stamp.is_file() and stamp.read_text().strip() == signature
     imports_work = subprocess.run(
-        [str(executable), '-c', 'import fastapi, uvicorn, httpx, pydantic'+('; import faster_whisper, imageio_ffmpeg' if voice else '; import ultralytics, imageio_ffmpeg' if vision else '')],
+        [str(executable), '-c', 'import fastapi, uvicorn, httpx, pydantic, jwt'+('; import faster_whisper, imageio_ffmpeg' if voice else '; import ultralytics, imageio_ffmpeg' if vision else '')],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     ).returncode == 0
     if not matches or not imports_work:

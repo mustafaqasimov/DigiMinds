@@ -11,3 +11,4 @@ test-results/
 data/vision-jobs/
 data/voice-jobs/
 data/speech-model/
+*.jwt-key

@@ -93,6 +93,7 @@ def test_websocket_authenticated_delivery_and_cancellation(client):
 
 def test_drills_disabled_outside_demo(tmp_path, monkeypatch):
     monkeypatch.setenv('ADMIN_PASSWORD', 'a-long-enough-test-password')
+    monkeypatch.setenv('JWT_SECRET', 'production-fixture-key-at-least-32-bytes')
     with TestClient(create_app(str(tmp_path/'production.db'), demo=False)) as client:
         assert client.post('/api/drills/earthquake', headers=H, json={
             'event_key': str(uuid4()), 'room': 'DIGI26', 'location': 'Baku',

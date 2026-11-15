@@ -10,6 +10,7 @@ their status. Not an official early-warning service and not connected to Google.
 import math
 import time
 import uuid
+import anyio
 from typing import Literal
 
 from fastapi import HTTPException, Request
@@ -103,7 +104,7 @@ def snapshot(store, user, now):
     return result
 
 
-def install_seismic(app, store, require, throttle, demo):
+def install_seismic(app, store, require, throttle, demo, sos_workers):
     def drill_alarm(alert):
         """Demo: ring the existing drill alarm in every room that has connected devices."""
         hub = getattr(app.state, 'drills', None)
@@ -159,17 +160,20 @@ def install_seismic(app, store, require, throttle, demo):
             active = snapshot(store, None, now)['seismic']
         return {'ok': True, 'devices_online': online, 'needed': cfg.get('seismic_devices', 3), 'seismic': active}
 
-    @app.post('/api/seismic/{alert_id}/checkin')
-    def checkin(alert_id: str, body: CheckIn, request: Request):
+    def process_checkin(alert_id, body, request):
         """Citizen status after a warning. Help/trapped become SOS reports for dispatch."""
         u = require(request, 'sos:own')
         throttle('checkin:' + u['id'], 20)
         with store.lock, store.db:
+            store.evaluate()
             alert = store.get('alert', alert_id)
             if not alert or alert['kind'] != 'seismic':
                 raise HTTPException(404, 'not_found')
             if not alert.get('condition_active'):
                 raise HTTPException(409, 'warning_ended')
+            event_key = f'checkin-{alert_id}-{body.status}'
+            if body.status != 'safe' and not store.report_by_key(u['id'], event_key):
+                throttle('sos:' + u['id'], 8)
             now = store.clock()
             store.db.execute('INSERT OR REPLACE INTO checkins VALUES(?,?,?,?,?,?)',
                              (alert_id, u['id'], body.status, body.lat, body.lng, now))
@@ -177,10 +181,17 @@ def install_seismic(app, store, require, throttle, demo):
             if body.status == 'safe':
                 store.safe(u['id'])
             else:
-                report, _ = store.report(u['id'], f'checkin-{alert_id}-{body.status}',
+                report, _ = store.report(u['id'], event_key,
                                          CHECKIN_SOS[body.status], body.lat, body.lng)
             store.audit(u['id'], 'seismic.checkin', body.status)
         return {'status': body.status, 'sos': report['id'] if report else None}
+
+    @app.post('/api/seismic/{alert_id}/checkin')
+    async def checkin(alert_id: str, body: CheckIn, request: Request):
+        try:
+            return await anyio.to_thread.run_sync(process_checkin,alert_id,body,request,limiter=sos_workers)
+        except ValueError as exc:
+            raise HTTPException(409,str(exc))
 
     @app.post('/api/demo/seismic')
     def seismic_config(body: SeismicConfig, request: Request):

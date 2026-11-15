@@ -158,7 +158,7 @@ node --test tests/*.test.mjs
 python tools/load_test.py --isolated
 ```
 
-İzolyasiya edilmiş yük testi öz müvəqqəti HTTP serverini/DB-sini açıb bağlayır; nümayiş məlumatlarını dəyişmir. 1000 HTTP sorğusu, 24 şəxs, 40 paralel sorğu: 24 yeni SOS və 976 idempotent təkrar gözlənilir. Ayrı integration test 200 unikal şəxs + 200 təkrar göndərir. Canlı serverə test üçün `--isolated` əvəzinə `--base-url URL` istifadə edin; bu seçim həmin demo bazasına test məlumatı yazır. Nəticələr: [verification.md](docs/verification.md).
+İzolyasiya edilmiş normal yük testi öz müvəqqəti HTTP serverini/DB-sini açıb bağlayır; nümayiş məlumatlarını dəyişmir. 1000 HTTP sorğusu, 24 şəxs, 8 paralel sorğu: 24 yeni SOS və 976 idempotent təkrar gözlənilir. Ayrı integration test 200 unikal şəxs + 200 təkrar göndərir. **Flood testi:** `python tools/flood_test.py --requests 600 --output flood-results.json` eyni anda 600 SOS, üstəlik dispetçer oxumaları və briqada təyinatları göndərir; orta gecikmə 300 ms-i keçərsə uğursuz çıxır. `--cold` yeni TCP bağlantılarının qurulmasını da ölçür. [Flood qoruması və ölçmə şərtləri](docs/sos-flood.md). Canlı serverə normal yük testi üçün `--isolated` əvəzinə `--base-url URL` istifadə edin; bu seçim həmin demo bazasına test məlumatı yazır. Əvvəlki nəticələr: [verification.md](docs/verification.md).
 
 ## Konfiqurasiya və təhlükəsizlik
 
@@ -168,6 +168,7 @@ python tools/load_test.py --isolated
 | --- | --- |
 | `DEMO_MODE=0` | Demo hesabları və nasazlıq simulyasiyasını söndürür |
 | `ADMIN_PASSWORD` | Demo söndürüləndə ilkin `admin` üçün ən az 16 simvol |
+| `JWT_SECRET` | Production üçün ən az 32 baytlıq təsadüfi imza açarı; demo rejimi lokal `.jwt-key` yaradır |
 | `SECURE_COOKIES=1` | HTTPS yerləşdirmədə session cookie yalnız TLS ilə göndərilir |
 | `DATABASE_PATH` | SQLite faylı; standart `data/crisis.db` |
 | `SENSOR_KEY` | Kamera ölçmələri üçün ayrıca server açarı |
@@ -175,7 +176,7 @@ python tools/load_test.py --isolated
 | `ORS_URL` | OpenRouteService foot-walking/geojson endpointi |
 | `ALLOWED_ORIGINS` | Vergüllə ayrılmış əlavə etibarlı origin-lər |
 
-PBKDF2 şifrə heşi, 8 saatlıq server sessiyası, HttpOnly/SameSite cookie, CSRF header/origin yoxlaması, Pydantic doğrulama, 64 KiB body həddi, parametrli SQL və audit jurnalı var. SOS limiti 8/dəq/şəxs, ümumi API 300/dəq/şəxs, giriş 12/dəq/IP və 8/dəq/hesab, guest 40/dəq/IP, sensor 120/dəq/məntəqə. `429` ilə `Retry-After` verilir. Rollar yalnız frontenddə gizlədilmir, hər server əməliyyatında yoxlanır.
+PBKDF2 şifrə heşi, 8 saatlıq HS256 JWT + ləğv edilən server sessiyası, HttpOnly/SameSite cookie, CSRF header/origin yoxlaması, Pydantic doğrulama, 64 KiB body həddi, parametrli SQL və audit jurnalı var. JWT üçün imza, algorithm, issuer, audience, expiry və məcburi claim-lər yoxlanır; rol icazələri hər sorğuda bazadan oxunur. SOS üçün 1200 sorğu/dəq/IP, 60 sorğu/dəq/hesab (təkrarlar daxil), 8 yeni açar/dəq/hesab, server üzrə 16 qəbul edilmiş paralel sorğu və hesab üzrə 2 paralel sorğu həddi var. SOS ayrıca 4 işçi yerindən istifadə edir. SOS yaradan zəlzələ check-in endpointi də eyni limitləri paylaşır. Ümumi API 300/dəq/şəxs, giriş 12/dəq/IP və 8/dəq/hesab, guest 40/dəq/IP, sensor 120/dəq/məntəqə. `429` ilə `Retry-After` verilir; brauzerin SOS növbəsi bu müddətə əməl edir. Briqada təyinatı və ehtiyat məntəqə açılması `incident:act` icazəsi tələb edir.
 
 Bu prototip tək prosesli SQLite və yaddaşdakı limiter istifadə edir. Horizontal miqyas üçün PostgreSQL/PostGIS, ortaq Redis limiter/pubsub, davamlı event queue və etibarlı şəxsiyyət doğrulaması ayrıca mərhələdir. Guest sessiyası insanın unikal şəxsiyyətini sübut etmir. Real FHN dispetçer sistemi ilə inteqrasiya yoxdur; göndəriş burada prototipin briqada statusunu dəyişir.
 

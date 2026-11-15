@@ -1,4 +1,5 @@
 import json
+import math
 import sqlite3
 import threading
 import time
@@ -24,6 +25,8 @@ class Store:
         self.clock=clock
         self.map=seed_map()
         self.revision=0
+        self._evaluation_revision=-1
+        self._evaluation_due=0
         self.db.executescript('''
           PRAGMA journal_mode=WAL;
           PRAGMA foreign_keys=ON;
@@ -34,6 +37,9 @@ class Store:
           CREATE TABLE IF NOT EXISTS reports(id TEXT PRIMARY KEY,user_id TEXT,event_key TEXT,incident_id TEXT REFERENCES incidents(id),type TEXT,lat REAL,lng REAL,zone TEXT,created REAL,status TEXT,client_time REAL,UNIQUE(user_id,event_key));
           CREATE UNIQUE INDEX IF NOT EXISTS one_reporter_per_incident ON reports(user_id,incident_id);
           CREATE INDEX IF NOT EXISTS recent_reports ON reports(created,zone);
+          CREATE INDEX IF NOT EXISTS incident_candidates ON incidents(type,status,updated);
+          CREATE INDEX IF NOT EXISTS reports_by_incident ON reports(incident_id);
+          CREATE TABLE IF NOT EXISTS sos_deliveries(user_id TEXT,event_key TEXT,report_id TEXT REFERENCES reports(id),type TEXT,lat REAL,lng REAL,PRIMARY KEY(user_id,event_key));
           CREATE TABLE IF NOT EXISTS actions(alert_id TEXT,action TEXT,resource TEXT,actor TEXT,created REAL,PRIMARY KEY(alert_id,action));
           CREATE TABLE IF NOT EXISTS seismic(id TEXT PRIMARY KEY,device TEXT,label TEXT,lat REAL,lng REAL,peak REAL,ratio REAL,test INTEGER,created REAL);
           CREATE INDEX IF NOT EXISTS recent_seismic ON seismic(created);
@@ -78,6 +84,7 @@ class Store:
 
     def put(self, kind, obj):
         self.db.execute('INSERT OR REPLACE INTO objects VALUES(?,?,?)',(kind,obj['id'],json.dumps(obj)))
+        if kind in ('config','shelter'):self._evaluation_due=0
 
     def audit(self, actor, action, target):
         self.db.execute('INSERT INTO audit(actor,action,target,created) VALUES(?,?,?,?)',(actor,action,target,self.clock()))
@@ -90,11 +97,18 @@ class Store:
         record=self.get('profile',user_id) or {}
         return bool((user and user['role']=='priority_citizen') or needs_accessible(record.get('profile') or {}))
 
+    def report_by_key(self,user_id,event_key):
+        return self.db.execute('SELECT r.* FROM reports r JOIN sos_deliveries d ON r.id=d.report_id WHERE d.user_id=? AND d.event_key=?',(user_id,event_key)).fetchone() or self.db.execute('SELECT * FROM reports WHERE user_id=? AND event_key=?',(user_id,event_key)).fetchone()
+
+    def remember_delivery(self,user_id,event_key,report_id,type,lat,lng):
+        self.db.execute('INSERT OR IGNORE INTO sos_deliveries VALUES(?,?,?,?,?,?)',(user_id,event_key,report_id,type,lat,lng))
+
     def report(self, user_id, event_key, type, lat, lng, incident_id=None, client_time=None):
         with self.lock,self.db:
-            old=self.db.execute('SELECT * FROM reports WHERE user_id=? AND event_key=?',(user_id,event_key)).fetchone()
+            old=self.report_by_key(user_id,event_key)
             if old:
-                if old['type']!=type or abs(old['lat']-lat)>.000001 or abs(old['lng']-lng)>.000001:
+                delivery=self.db.execute('SELECT * FROM sos_deliveries WHERE user_id=? AND event_key=?',(user_id,event_key)).fetchone() or old
+                if delivery['type']!=type or abs(delivery['lat']-lat)>.000001 or abs(delivery['lng']-lng)>.000001 or (incident_id and incident_id!=old['incident_id']):
                     raise ValueError('idempotency_conflict')
                 return dict(old),False
             now=self.clock(); cfg=self.config()
@@ -109,6 +123,7 @@ class Store:
                 iid=match['id']
                 old=self.db.execute('SELECT * FROM reports WHERE user_id=? AND incident_id=?',(user_id,iid)).fetchone()
                 if old:
+                    self.remember_delivery(user_id,event_key,old['id'],type,lat,lng)
                     # A new SOS from the same reporter may raise an existing active
                     # incident to P1, without counting the reporter a second time.
                     if old['priority']!=1 and old['status']=='active' and self.accessible_required(user_id):
@@ -122,6 +137,7 @@ class Store:
                 self.db.execute('INSERT INTO incidents VALUES(?,?,?,?,?,?,?,?)',(iid,type,lat,lng,zone_for(lat,lng),'open',now,now))
             r={'id':uid(),'user_id':user_id,'event_key':event_key,'incident_id':iid,'type':type,'lat':lat,'lng':lng,'zone':zone_for(lat,lng),'created':now,'status':'active','client_time':client_time,'priority':1 if self.accessible_required(user_id) else 2}
             self.db.execute('INSERT INTO reports (id,user_id,event_key,incident_id,type,lat,lng,zone,created,status,client_time,priority) VALUES(:id,:user_id,:event_key,:incident_id,:type,:lat,:lng,:zone,:created,:status,:client_time,:priority)',r)
+            self.remember_delivery(user_id,event_key,r['id'],type,lat,lng)
             self.audit(user_id,'sos.created',iid)
             self.evaluate()
             return r,True
@@ -138,7 +154,9 @@ class Store:
         Deduplicate overlapping alert evidence; never use transitive DBSCAN chains.
         Old incident alerts remain in the audit trail when the trigger expires.
         """
-        now=self.clock(); cfg=self.config()
+        now=self.clock()
+        if self.revision==self._evaluation_revision and now<self._evaluation_due:return
+        cfg=self.config()
         reports=[dict(r) for r in self.db.execute('SELECT * FROM reports WHERE created>=? AND created<=? ORDER BY created,id',(now-cfg['window_seconds'],now))]
         triggers=[]; zone_members={}
         # A single active Priority 1 report warrants an immediate operator alert,
@@ -182,6 +200,14 @@ class Store:
         for key,a in existing.items():
             if key not in active and a.get('condition_active'):
                 a['condition_active']=False;self.put('alert',a);self.revision+=1
+        self._evaluation_revision=self.revision
+        deadlines=[math.nextafter(r['created']+cfg['window_seconds'],math.inf) for r in reports]
+        # Seismic alerts expire on their own hold window, independently of SOS.
+        # Include every recent onset: a later onset may become the cluster anchor.
+        hold=cfg.get('seismic_hold_seconds',300)
+        deadlines.extend(math.nextafter(r['created']+hold,math.inf) for r in
+                         self.db.execute('SELECT created FROM seismic WHERE created>=? AND created<=?',(now-hold,now)))
+        self._evaluation_due=min(deadlines,default=now+30)
 
     def snapshot(self,user=None):
         with self.lock,self.db:

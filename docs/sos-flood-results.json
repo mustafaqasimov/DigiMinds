@@ -1,0 +1,1229 @@
+{
+  "base_commit": "adbdfb77be60391ef6e1a78a2fa442d18fb83b19",
+  "scope": "One Uvicorn worker, synthetic disposable database, real HTTP client and server on the same host. No authentication or admission bypass on measured endpoints.",
+  "acceptance": "Functional flood and regression checks pass. Final warm unique-account and cold TCP runs exceed 300 ms client mean latency; unrestricted latency requirement remains unverified. All passing and failing profiles are retained.",
+  "source_sha256": {
+    "backend/app.py": "4300867115dd25042b14c14105b51a2e57bc3a040b131cada3cf7f18a07d0250",
+    "backend/request_guards.py": "ed57a9f26cbcc86bd3365c899f25860348ee7a30c563fd7cc3f685255ceb3dd5",
+    "backend/security.py": "b4e3fca649098df4af185efa7e636681b0442b918b79255225aae564bc4f383a",
+    "backend/seismic.py": "59089075eff24f2d42e2f8c3bd0b90105d15aafad8fe68992a48e800e6f24db6",
+    "backend/sos_guard.py": "4fc795e18d409820713684086612a506c26357a704f649976def3b987d39bb61",
+    "backend/store.py": "9b01c340ff17bd90d301d58836ec85d22fa349ec8873f6236626d546a55ced28",
+    "tools/dev.py": "f4395c63dcfc302e4995f562012244cfa9e2006589d3a6530d50ae52701367c5",
+    "tools/flood_client.mjs": "0d1e2ca7a45961fd01e335081811dac3b4325bc7c131f6dee17d9cc85bf116bd",
+    "tools/flood_test.py": "254c37fcb81b15e2539912c1515f5b78213ec8c6061feaf469933703ba95d4e2",
+    "tools/load_test.py": "bd9ed7cd1df5f64d3411a6c8fb78b97ad974f6688083ddc4c83d7e9d2deb2bd5",
+    "tools/start.py": "7d15c89271a76c90368affe3af19fafcf54816a36bad5865dcada285bd6042d4"
+  },
+  "final_warm": {
+    "measured_at_utc": "2026-11-15T10:50:00Z",
+    "python": "3.12.14",
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "logical_cpus": 9,
+    "workers": 1,
+    "latency_target_mean_ms": 300,
+    "cases": [
+      {
+        "scenario": "replay",
+        "connections": "warm_keep_alive",
+        "requests": 600,
+        "concurrency": 600,
+        "elapsed_ms": 247.01,
+        "http_statuses": {
+          "200": 22,
+          "201": 1,
+          "429": 598
+        },
+        "groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 98.82,
+            "p95_ms": 106.91,
+            "max_ms": 241.57
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 188.74,
+            "p95_ms": 213.21,
+            "max_ms": 213.21
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 175.53,
+            "p95_ms": 216.17,
+            "max_ms": 216.17
+          },
+          "genuine": {
+            "count": 1,
+            "mean_ms": 217.73,
+            "p95_ms": 217.73,
+            "max_ms": 217.73
+          }
+        },
+        "server_groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 0.46,
+            "p95_ms": 0.05,
+            "max_ms": 163.12
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 92.1,
+            "p95_ms": 115.88,
+            "max_ms": 115.88
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 75.23,
+            "p95_ms": 118.92,
+            "max_ms": 118.92
+          },
+          "genuine": {
+            "count": 1,
+            "mean_ms": 116.39,
+            "p95_ms": 116.39,
+            "max_ms": 116.39
+          }
+        },
+        "accepted_sos": {
+          "count": 2,
+          "mean_ms": 209.42,
+          "p95_ms": 241.57,
+          "max_ms": 241.57
+        },
+        "blocked_sos": {
+          "count": 598,
+          "mean_ms": 98.45,
+          "p95_ms": 106.91,
+          "max_ms": 107.32
+        },
+        "operator_ok": true,
+        "genuine_ok": true,
+        "retry_after_ok": true,
+        "unexpected_status": false,
+        "created": 1,
+        "latency_pass": true,
+        "functionality_pass": true,
+        "new_reports": 1,
+        "dispatch_actions": 1,
+        "deduplication_pass": true,
+        "pass": true
+      },
+      {
+        "scenario": "unique",
+        "connections": "warm_keep_alive",
+        "requests": 600,
+        "concurrency": 600,
+        "elapsed_ms": 447.94,
+        "http_statuses": {
+          "200": 20,
+          "201": 16,
+          "429": 584
+        },
+        "groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 215.27,
+            "p95_ms": 293.01,
+            "max_ms": 443.38
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 364.22,
+            "p95_ms": 392.02,
+            "max_ms": 392.02
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 360.45,
+            "p95_ms": 381.53,
+            "max_ms": 381.53
+          }
+        },
+        "server_groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 4.38,
+            "p95_ms": 0.1,
+            "max_ms": 172.69
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 77.03,
+            "p95_ms": 103.94,
+            "max_ms": 103.94
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 74.01,
+            "p95_ms": 92.99,
+            "max_ms": 92.99
+          }
+        },
+        "accepted_sos": {
+          "count": 16,
+          "mean_ms": 429.82,
+          "p95_ms": 443.38,
+          "max_ms": 443.38
+        },
+        "blocked_sos": {
+          "count": 584,
+          "mean_ms": 209.39,
+          "p95_ms": 292.05,
+          "max_ms": 293.63
+        },
+        "operator_ok": true,
+        "genuine_ok": true,
+        "retry_after_ok": true,
+        "unexpected_status": false,
+        "created": 16,
+        "latency_pass": false,
+        "functionality_pass": true,
+        "new_reports": 16,
+        "dispatch_actions": 1,
+        "deduplication_pass": true,
+        "pass": false
+      },
+      {
+        "scenario": "invalid",
+        "connections": "warm_keep_alive",
+        "requests": 600,
+        "concurrency": 600,
+        "elapsed_ms": 191.43,
+        "http_statuses": {
+          "200": 20,
+          "401": 600
+        },
+        "groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 74.41,
+            "p95_ms": 78.36,
+            "max_ms": 80.29
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 141.27,
+            "p95_ms": 167.83,
+            "max_ms": 167.83
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 146.2,
+            "p95_ms": 162.25,
+            "max_ms": 162.25
+          }
+        },
+        "server_groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 0.02,
+            "p95_ms": 0.06,
+            "max_ms": 0.26
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 77.11,
+            "p95_ms": 103.36,
+            "max_ms": 103.36
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 80.66,
+            "p95_ms": 97.29,
+            "max_ms": 97.29
+          }
+        },
+        "blocked_sos": {
+          "count": 600,
+          "mean_ms": 74.41,
+          "p95_ms": 78.36,
+          "max_ms": 80.29
+        },
+        "operator_ok": true,
+        "genuine_ok": true,
+        "retry_after_ok": true,
+        "unexpected_status": false,
+        "created": 0,
+        "latency_pass": true,
+        "functionality_pass": true,
+        "new_reports": 0,
+        "dispatch_actions": 1,
+        "deduplication_pass": true,
+        "pass": true
+      }
+    ],
+    "pass": false
+  },
+  "final_cold": {
+    "measured_at_utc": "2026-11-15T10:50:05Z",
+    "python": "3.12.14",
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "logical_cpus": 9,
+    "workers": 1,
+    "latency_target_mean_ms": 300,
+    "cases": [
+      {
+        "scenario": "replay",
+        "connections": "cold_tcp",
+        "requests": 600,
+        "concurrency": 600,
+        "elapsed_ms": 411.57,
+        "http_statuses": {
+          "200": 22,
+          "201": 1,
+          "429": 598
+        },
+        "groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 250.7,
+            "p95_ms": 263.77,
+            "max_ms": 342.96
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 319.09,
+            "p95_ms": 352.68,
+            "max_ms": 352.68
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 332.15,
+            "p95_ms": 343.22,
+            "max_ms": 343.22
+          },
+          "genuine": {
+            "count": 1,
+            "mean_ms": 342.61,
+            "p95_ms": 342.61,
+            "max_ms": 342.61
+          }
+        },
+        "server_groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 0.35,
+            "p95_ms": 0.06,
+            "max_ms": 106.3
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 84.78,
+            "p95_ms": 118.17,
+            "max_ms": 118.17
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 96.72,
+            "p95_ms": 106.88,
+            "max_ms": 106.88
+          },
+          "genuine": {
+            "count": 1,
+            "mean_ms": 105.32,
+            "p95_ms": 105.32,
+            "max_ms": 105.32
+          }
+        },
+        "accepted_sos": {
+          "count": 2,
+          "mean_ms": 341.4,
+          "p95_ms": 342.96,
+          "max_ms": 342.96
+        },
+        "blocked_sos": {
+          "count": 598,
+          "mean_ms": 250.4,
+          "p95_ms": 263.58,
+          "max_ms": 264.91
+        },
+        "operator_ok": true,
+        "genuine_ok": true,
+        "retry_after_ok": true,
+        "unexpected_status": false,
+        "created": 1,
+        "latency_pass": false,
+        "functionality_pass": true,
+        "new_reports": 1,
+        "dispatch_actions": 1,
+        "deduplication_pass": true,
+        "pass": false
+      },
+      {
+        "scenario": "unique",
+        "connections": "cold_tcp",
+        "requests": 600,
+        "concurrency": 600,
+        "elapsed_ms": 532.58,
+        "http_statuses": {
+          "200": 20,
+          "201": 16,
+          "429": 584
+        },
+        "groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 335.99,
+            "p95_ms": 349.48,
+            "max_ms": 521.97
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 403.83,
+            "p95_ms": 432.52,
+            "max_ms": 432.52
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 417.14,
+            "p95_ms": 439.94,
+            "max_ms": 439.94
+          }
+        },
+        "server_groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 4.82,
+            "p95_ms": 0.08,
+            "max_ms": 211.99
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 94.36,
+            "p95_ms": 123.27,
+            "max_ms": 123.27
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 106.44,
+            "p95_ms": 129.12,
+            "max_ms": 129.12
+          }
+        },
+        "accepted_sos": {
+          "count": 16,
+          "mean_ms": 493.37,
+          "p95_ms": 521.97,
+          "max_ms": 521.97
+        },
+        "blocked_sos": {
+          "count": 584,
+          "mean_ms": 331.68,
+          "p95_ms": 343.39,
+          "max_ms": 350.19
+        },
+        "operator_ok": true,
+        "genuine_ok": true,
+        "retry_after_ok": true,
+        "unexpected_status": false,
+        "created": 16,
+        "latency_pass": false,
+        "functionality_pass": true,
+        "new_reports": 16,
+        "dispatch_actions": 1,
+        "deduplication_pass": true,
+        "pass": false
+      },
+      {
+        "scenario": "invalid",
+        "connections": "cold_tcp",
+        "requests": 600,
+        "concurrency": 600,
+        "elapsed_ms": 450.33,
+        "http_statuses": {
+          "200": 20,
+          "401": 600
+        },
+        "groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 269.97,
+            "p95_ms": 318.47,
+            "max_ms": 330.51
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 337.49,
+            "p95_ms": 394.98,
+            "max_ms": 394.98
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 381.85,
+            "p95_ms": 395.25,
+            "max_ms": 395.25
+          }
+        },
+        "server_groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 0.03,
+            "p95_ms": 0.05,
+            "max_ms": 0.35
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 133.5,
+            "p95_ms": 189.06,
+            "max_ms": 189.06
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 165.43,
+            "p95_ms": 184.54,
+            "max_ms": 184.54
+          }
+        },
+        "blocked_sos": {
+          "count": 600,
+          "mean_ms": 269.97,
+          "p95_ms": 318.47,
+          "max_ms": 330.51
+        },
+        "operator_ok": true,
+        "genuine_ok": true,
+        "retry_after_ok": true,
+        "unexpected_status": false,
+        "created": 0,
+        "latency_pass": false,
+        "functionality_pass": true,
+        "new_reports": 0,
+        "dispatch_actions": 1,
+        "deduplication_pass": true,
+        "pass": false
+      }
+    ],
+    "pass": false
+  },
+  "earlier_warm_before_seismic_intake_patch": {
+    "measured_at_utc": "2026-11-15T10:41:56Z",
+    "python": "3.12.14",
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "logical_cpus": 9,
+    "workers": 1,
+    "latency_target_mean_ms": 300,
+    "cases": [
+      {
+        "scenario": "replay",
+        "connections": "warm_keep_alive",
+        "requests": 600,
+        "concurrency": 600,
+        "elapsed_ms": 551.36,
+        "http_statuses": {
+          "200": 22,
+          "201": 1,
+          "429": 598
+        },
+        "groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 307.67,
+            "p95_ms": 373.94,
+            "max_ms": 474.58
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 461.88,
+            "p95_ms": 497.34,
+            "max_ms": 497.34
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 475.4,
+            "p95_ms": 498.94,
+            "max_ms": 498.94
+          },
+          "genuine": {
+            "count": 1,
+            "mean_ms": 497.64,
+            "p95_ms": 497.64,
+            "max_ms": 497.64
+          }
+        },
+        "server_groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 1,
+            "p95_ms": 0.07,
+            "max_ms": 327.22
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 311.63,
+            "p95_ms": 345.52,
+            "max_ms": 345.52
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 322.09,
+            "p95_ms": 347.16,
+            "max_ms": 347.16
+          },
+          "genuine": {
+            "count": 1,
+            "mean_ms": 338.66,
+            "p95_ms": 338.66,
+            "max_ms": 338.66
+          }
+        },
+        "accepted_sos": {
+          "count": 2,
+          "mean_ms": 424.1,
+          "p95_ms": 474.58,
+          "max_ms": 474.58
+        },
+        "blocked_sos": {
+          "count": 598,
+          "mean_ms": 307.28,
+          "p95_ms": 373.94,
+          "max_ms": 376.14
+        },
+        "operator_ok": true,
+        "genuine_ok": true,
+        "retry_after_ok": true,
+        "unexpected_status": false,
+        "created": 1,
+        "latency_pass": false,
+        "functionality_pass": true,
+        "new_reports": 1,
+        "dispatch_actions": 1,
+        "deduplication_pass": true,
+        "pass": false
+      },
+      {
+        "scenario": "unique",
+        "connections": "warm_keep_alive",
+        "requests": 600,
+        "concurrency": 600,
+        "elapsed_ms": 277.24,
+        "http_statuses": {
+          "200": 20,
+          "201": 16,
+          "429": 584
+        },
+        "groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 103.33,
+            "p95_ms": 108.75,
+            "max_ms": 274.34
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 177.4,
+            "p95_ms": 222.77,
+            "max_ms": 222.77
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 167.35,
+            "p95_ms": 186.01,
+            "max_ms": 186.01
+          }
+        },
+        "server_groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 4.04,
+            "p95_ms": 0.06,
+            "max_ms": 188.41
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 85.37,
+            "p95_ms": 130.71,
+            "max_ms": 130.71
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 74.85,
+            "p95_ms": 93.94,
+            "max_ms": 93.94
+          }
+        },
+        "accepted_sos": {
+          "count": 16,
+          "mean_ms": 231.75,
+          "p95_ms": 274.34,
+          "max_ms": 274.34
+        },
+        "blocked_sos": {
+          "count": 584,
+          "mean_ms": 99.81,
+          "p95_ms": 107.96,
+          "max_ms": 109.16
+        },
+        "operator_ok": true,
+        "genuine_ok": true,
+        "retry_after_ok": true,
+        "unexpected_status": false,
+        "created": 16,
+        "latency_pass": true,
+        "functionality_pass": true,
+        "new_reports": 16,
+        "dispatch_actions": 1,
+        "deduplication_pass": true,
+        "pass": true
+      },
+      {
+        "scenario": "invalid",
+        "connections": "warm_keep_alive",
+        "requests": 600,
+        "concurrency": 600,
+        "elapsed_ms": 296.98,
+        "http_statuses": {
+          "200": 20,
+          "401": 600
+        },
+        "groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 148.77,
+            "p95_ms": 162.64,
+            "max_ms": 162.88
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 220.23,
+            "p95_ms": 258.18,
+            "max_ms": 258.18
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 217.47,
+            "p95_ms": 258.63,
+            "max_ms": 258.63
+          }
+        },
+        "server_groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 0.04,
+            "p95_ms": 0.12,
+            "max_ms": 4.22
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 102.53,
+            "p95_ms": 138.17,
+            "max_ms": 138.17
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 95.95,
+            "p95_ms": 135.68,
+            "max_ms": 135.68
+          }
+        },
+        "blocked_sos": {
+          "count": 600,
+          "mean_ms": 148.77,
+          "p95_ms": 162.64,
+          "max_ms": 162.88
+        },
+        "operator_ok": true,
+        "genuine_ok": true,
+        "retry_after_ok": true,
+        "unexpected_status": false,
+        "created": 0,
+        "latency_pass": true,
+        "functionality_pass": true,
+        "new_reports": 0,
+        "dispatch_actions": 1,
+        "deduplication_pass": true,
+        "pass": true
+      }
+    ],
+    "pass": false
+  },
+  "regression_tests": {
+    "python_passed": 182,
+    "python_skipped": 2,
+    "javascript_passed": 47
+  },
+  "previous_base_commit": "df86ced6af3b1282bb200ce1f84c2b5ee893806a",
+  "pre_capacity_merge_warm": {
+    "measured_at_utc": "2026-11-15T10:45:19Z",
+    "python": "3.12.14",
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "logical_cpus": 9,
+    "workers": 1,
+    "latency_target_mean_ms": 300,
+    "cases": [
+      {
+        "scenario": "replay",
+        "connections": "warm_keep_alive",
+        "requests": 600,
+        "concurrency": 600,
+        "elapsed_ms": 234.26,
+        "http_statuses": {
+          "200": 22,
+          "201": 1,
+          "429": 598
+        },
+        "groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 113.39,
+            "p95_ms": 117.09,
+            "max_ms": 177.55
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 164.6,
+            "p95_ms": 194.77,
+            "max_ms": 194.77
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 170.74,
+            "p95_ms": 202.82,
+            "max_ms": 202.82
+          },
+          "genuine": {
+            "count": 1,
+            "mean_ms": 150.03,
+            "p95_ms": 150.03,
+            "max_ms": 150.03
+          }
+        },
+        "server_groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 0.29,
+            "p95_ms": 0.02,
+            "max_ms": 82.95
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 76.1,
+            "p95_ms": 114.42,
+            "max_ms": 114.42
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 79.22,
+            "p95_ms": 113.34,
+            "max_ms": 113.34
+          },
+          "genuine": {
+            "count": 1,
+            "mean_ms": 57.06,
+            "p95_ms": 57.06,
+            "max_ms": 57.06
+          }
+        },
+        "accepted_sos": {
+          "count": 2,
+          "mean_ms": 173.28,
+          "p95_ms": 177.55,
+          "max_ms": 177.55
+        },
+        "blocked_sos": {
+          "count": 598,
+          "mean_ms": 113.19,
+          "p95_ms": 117.09,
+          "max_ms": 118.41
+        },
+        "operator_ok": true,
+        "genuine_ok": true,
+        "retry_after_ok": true,
+        "unexpected_status": false,
+        "created": 1,
+        "latency_pass": true,
+        "functionality_pass": true,
+        "new_reports": 1,
+        "dispatch_actions": 1,
+        "deduplication_pass": true,
+        "pass": true
+      },
+      {
+        "scenario": "unique",
+        "connections": "warm_keep_alive",
+        "requests": 600,
+        "concurrency": 600,
+        "elapsed_ms": 355.23,
+        "http_statuses": {
+          "200": 20,
+          "201": 16,
+          "429": 584
+        },
+        "groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 126.23,
+            "p95_ms": 159.78,
+            "max_ms": 351.4
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 225.04,
+            "p95_ms": 314.8,
+            "max_ms": 314.8
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 229.62,
+            "p95_ms": 317.06,
+            "max_ms": 317.06
+          }
+        },
+        "server_groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 5.86,
+            "p95_ms": 0.11,
+            "max_ms": 290.28
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 113.47,
+            "p95_ms": 208.68,
+            "max_ms": 208.68
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 106.99,
+            "p95_ms": 190.87,
+            "max_ms": 190.87
+          }
+        },
+        "accepted_sos": {
+          "count": 16,
+          "mean_ms": 279.25,
+          "p95_ms": 351.4,
+          "max_ms": 351.4
+        },
+        "blocked_sos": {
+          "count": 584,
+          "mean_ms": 122.03,
+          "p95_ms": 158.08,
+          "max_ms": 161.25
+        },
+        "operator_ok": true,
+        "genuine_ok": true,
+        "retry_after_ok": true,
+        "unexpected_status": false,
+        "created": 16,
+        "latency_pass": true,
+        "functionality_pass": true,
+        "new_reports": 16,
+        "dispatch_actions": 1,
+        "deduplication_pass": true,
+        "pass": true
+      },
+      {
+        "scenario": "invalid",
+        "connections": "warm_keep_alive",
+        "requests": 600,
+        "concurrency": 600,
+        "elapsed_ms": 184.5,
+        "http_statuses": {
+          "200": 20,
+          "401": 600
+        },
+        "groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 69.54,
+            "p95_ms": 84.58,
+            "max_ms": 89.12
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 135.13,
+            "p95_ms": 158.29,
+            "max_ms": 158.29
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 137.92,
+            "p95_ms": 159,
+            "max_ms": 159
+          }
+        },
+        "server_groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 0.03,
+            "p95_ms": 0.05,
+            "max_ms": 2.24
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 67.43,
+            "p95_ms": 89.91,
+            "max_ms": 89.91
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 68.26,
+            "p95_ms": 89.63,
+            "max_ms": 89.63
+          }
+        },
+        "blocked_sos": {
+          "count": 600,
+          "mean_ms": 69.54,
+          "p95_ms": 84.58,
+          "max_ms": 89.12
+        },
+        "operator_ok": true,
+        "genuine_ok": true,
+        "retry_after_ok": true,
+        "unexpected_status": false,
+        "created": 0,
+        "latency_pass": true,
+        "functionality_pass": true,
+        "new_reports": 0,
+        "dispatch_actions": 1,
+        "deduplication_pass": true,
+        "pass": true
+      }
+    ],
+    "pass": true
+  },
+  "pre_capacity_merge_cold": {
+    "measured_at_utc": "2026-11-15T10:45:36Z",
+    "python": "3.12.14",
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "logical_cpus": 9,
+    "workers": 1,
+    "latency_target_mean_ms": 300,
+    "cases": [
+      {
+        "scenario": "replay",
+        "connections": "cold_tcp",
+        "requests": 600,
+        "concurrency": 600,
+        "elapsed_ms": 603.32,
+        "http_statuses": {
+          "200": 22,
+          "201": 1,
+          "429": 598
+        },
+        "groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 416.61,
+            "p95_ms": 452.87,
+            "max_ms": 562.42
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 494.65,
+            "p95_ms": 519.48,
+            "max_ms": 519.48
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 497.77,
+            "p95_ms": 512.84,
+            "max_ms": 512.84
+          },
+          "genuine": {
+            "count": 1,
+            "mean_ms": 503.59,
+            "p95_ms": 503.59,
+            "max_ms": 503.59
+          }
+        },
+        "server_groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 0.42,
+            "p95_ms": 0.04,
+            "max_ms": 128.44
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 95.12,
+            "p95_ms": 125.1,
+            "max_ms": 125.1
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 105.64,
+            "p95_ms": 120.03,
+            "max_ms": 120.03
+          },
+          "genuine": {
+            "count": 1,
+            "mean_ms": 113.34,
+            "p95_ms": 113.34,
+            "max_ms": 113.34
+          }
+        },
+        "accepted_sos": {
+          "count": 2,
+          "mean_ms": 560.41,
+          "p95_ms": 562.42,
+          "max_ms": 562.42
+        },
+        "blocked_sos": {
+          "count": 598,
+          "mean_ms": 416.13,
+          "p95_ms": 452.86,
+          "max_ms": 453.95
+        },
+        "operator_ok": true,
+        "genuine_ok": true,
+        "retry_after_ok": true,
+        "unexpected_status": false,
+        "created": 1,
+        "latency_pass": false,
+        "functionality_pass": true,
+        "new_reports": 1,
+        "dispatch_actions": 1,
+        "deduplication_pass": true,
+        "pass": false
+      },
+      {
+        "scenario": "unique",
+        "connections": "cold_tcp",
+        "requests": 600,
+        "concurrency": 600,
+        "elapsed_ms": 494.07,
+        "http_statuses": {
+          "200": 22,
+          "201": 16,
+          "429": 582
+        },
+        "groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 318.67,
+            "p95_ms": 321.63,
+            "max_ms": 485.01
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 384.71,
+            "p95_ms": 430.23,
+            "max_ms": 430.23
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 386.6,
+            "p95_ms": 403.87,
+            "max_ms": 403.87
+          }
+        },
+        "server_groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 4.73,
+            "p95_ms": 0.09,
+            "max_ms": 198.38
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 100.4,
+            "p95_ms": 145.9,
+            "max_ms": 145.9
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 99.77,
+            "p95_ms": 117.14,
+            "max_ms": 117.14
+          }
+        },
+        "accepted_sos": {
+          "count": 18,
+          "mean_ms": 444.12,
+          "p95_ms": 485.01,
+          "max_ms": 485.01
+        },
+        "blocked_sos": {
+          "count": 582,
+          "mean_ms": 314.79,
+          "p95_ms": 320.99,
+          "max_ms": 321.79
+        },
+        "operator_ok": true,
+        "genuine_ok": true,
+        "retry_after_ok": true,
+        "unexpected_status": false,
+        "created": 16,
+        "latency_pass": false,
+        "functionality_pass": true,
+        "new_reports": 16,
+        "dispatch_actions": 1,
+        "deduplication_pass": true,
+        "pass": false
+      },
+      {
+        "scenario": "invalid",
+        "connections": "cold_tcp",
+        "requests": 600,
+        "concurrency": 600,
+        "elapsed_ms": 541.65,
+        "http_statuses": {
+          "200": 20,
+          "401": 600
+        },
+        "groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 323.6,
+            "p95_ms": 338.03,
+            "max_ms": 340
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 418.93,
+            "p95_ms": 467.7,
+            "max_ms": 467.7
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 442.97,
+            "p95_ms": 466.17,
+            "max_ms": 466.17
+          }
+        },
+        "server_groups": {
+          "sos": {
+            "count": 600,
+            "mean_ms": 0.04,
+            "p95_ms": 0.06,
+            "max_ms": 1.4
+          },
+          "dashboard": {
+            "count": 10,
+            "mean_ms": 153.27,
+            "p95_ms": 208.17,
+            "max_ms": 208.17
+          },
+          "dispatch": {
+            "count": 10,
+            "mean_ms": 175.47,
+            "p95_ms": 206.41,
+            "max_ms": 206.41
+          }
+        },
+        "blocked_sos": {
+          "count": 600,
+          "mean_ms": 323.6,
+          "p95_ms": 338.03,
+          "max_ms": 340
+        },
+        "operator_ok": true,
+        "genuine_ok": true,
+        "retry_after_ok": true,
+        "unexpected_status": false,
+        "created": 0,
+        "latency_pass": false,
+        "functionality_pass": true,
+        "new_reports": 0,
+        "dispatch_actions": 1,
+        "deduplication_pass": true,
+        "pass": false
+      }
+    ],
+    "pass": false
+  }
+}

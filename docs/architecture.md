@@ -20,14 +20,14 @@ flowchart TD
 | Endpoint | Access / result |
 | --- | --- |
 | `POST /api/auth/guest` | Anonymous citizen session; resumes the separate citizen cookie after operator switching |
-| `POST /api/auth/login`, `POST /api/auth/logout` | Password session / revocation |
+| `POST /api/auth/login`, `POST /api/auth/logout` | Signed HS256 JWT + server session / immediate revocation |
 | `GET /api/state`, `GET /api/map` | Authenticated role-filtered snapshot / sanitized public map |
-| `POST /api/sos` | `event_key,type,lat,lng,incident_id?,client_time?`; 201 new, 200 duplicate, 409 conflict |
+| `POST /api/sos` | `event_key,type,lat,lng,incident_id?,client_time?,voice_note?`; 201 new, 200 duplicate, 409 conflict, 429 + Retry-After when limited |
 | `POST /api/me/safe` | Own reports become safe |
 | `GET /api/routes?lat=…&lng=…&mode=local` | Reachable shelters sorted by network distance; never fabricates a direct line |
 | `PATCH /api/roads/{id}` | `road:write`; `{enabled:true}` blocks edge |
 | `PATCH /api/shelters/{id}/occupancy` | `shelter:write` or sensor key; freshness/coverage checks |
-| `POST /api/alerts/{id}/dispatch` | Atomic team allocation; retry returns original result |
+| `POST /api/alerts/{id}/dispatch` | JWT + current `incident:act` permission; atomic team allocation; retry returns original result |
 | `POST /api/alerts/{id}/open_shelter` | Opens an existing reachable reserve site; no resource → 409 |
 | `PATCH /api/teams/{id}` | Operator or assigned responder; en_route → on_scene → available |
 | `GET/POST /api/roles`, `PATCH /api/users/{id}/role` | Administrator role management |
@@ -56,7 +56,7 @@ flowchart TD
 | WebSocket down | `connect()` backoff and 4-second `refresh()` | Live browser challenge toggle |
 | Server unreachable | Service Worker + browser Dijkstra + outbox | Browser reload during stopped preview |
 | New role | Permission list stored as data; server + UI derive behavior | Role creation/assignment integration test |
-| Mass SOS / duplicates | Event idempotency + per-incident reporter uniqueness + throttles | 200 unique ASGI + 1000 real HTTP deliveries |
+| Mass SOS / duplicates | Pre-body IP/account admission; dedicated worker capacity; durable delivery aliases; JWT/RBAC | 600 simultaneous real HTTP requests with concurrent dispatch/dashboard checks; see [flood verification](sos-flood.md) |
 | Camera stops/stale | Timestamp/ordering rejection, stale measurement marker | Partial/stale sensor integration tests |
 
 Large-city routing and multi-instance deployment require replacing the small simulated graph, SQLite and process-local limiter. The current code intentionally avoids Kafka, Kubernetes and unnecessary service splits for a prototype; the transport/domain/vision boundaries remain replaceable.

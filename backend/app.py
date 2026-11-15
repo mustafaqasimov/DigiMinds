@@ -8,12 +8,15 @@ import time
 from pathlib import Path
 from typing import Literal
 import httpx
+import anyio
 from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ConfigDict
 from .store import Store, uid
-from .security import Limiter, password_hash, check_password, token_hash, PERMISSIONS
+from .security import Limiter, SessionTokens, request_token, password_hash, check_password, token_hash, PERMISSIONS
+from .sos_guard import SOSGuard
+from .request_guards import RequestGuards
 from . import events as mass_events
 from .geo import blocked_polygons, crosses_closure, distance
 from .circuit import CircuitBreaker
@@ -92,6 +95,8 @@ def create_app(db_path=None,demo=None):
     demo=(os.getenv('DEMO_MODE','1')=='1') if demo is None else demo
     store=Store(db_path or os.getenv('DATABASE_PATH',str(ROOT/'data/crisis.db')))
     limiter=Limiter()
+    tokens=SessionTokens(db_path or os.getenv('DATABASE_PATH',str(ROOT/'data/crisis.db')),demo)
+    sos_workers=anyio.CapacityLimiter(4)
     vision_jobs=VisionJobs(ROOT,Path(db_path or os.getenv('DATABASE_PATH',str(ROOT/'data/crisis.db'))).resolve().parent/'vision-jobs')
     voice_service=VoiceService(ROOT,Path(db_path or os.getenv('DATABASE_PATH',str(ROOT/'data/crisis.db'))).resolve().parent/'voice-jobs')
     @contextlib.asynccontextmanager
@@ -105,6 +110,7 @@ def create_app(db_path=None,demo=None):
     application.state.vision_jobs=vision_jobs
     application.state.voice_service=voice_service
     application.state.store=store;application.state.limiter=limiter
+    application.state.tokens=tokens
     application.state.routing_circuit=CircuitBreaker()
     application.state.provider_timeout=4.5
     application.state.routing_transport=None
@@ -129,50 +135,17 @@ def create_app(db_path=None,demo=None):
         same=f'{"https" if url.scheme in ("https","wss") else "http"}://{headers.get("host",url.netloc)}'
         return origin==same or origin in allowed
 
-    @application.middleware('http')
-    async def guards(request,call_next):
-        if request.method in ('POST','PUT','PATCH','DELETE'):
-            if not origin_ok(request.headers,request.url):
-                return Response('Origin rejected',403)
-            if not request.headers.get('authorization') and request.headers.get('x-requested-with')!='DigiMinds':
-                return Response('CSRF header required',403)
-            try:
-                declared=int(request.headers.get('content-length','0') or 0)
-            except ValueError:
-                return Response('Invalid content length',400)
-            if declared<0:return Response('Invalid content length',400)
-            video_upload=request.method=='POST' and request.url.path=='/api/vision/jobs'
-            voice_upload=request.method=='POST' and request.url.path=='/api/voice/transcribe'
-            body_limit=MAX_UPLOAD if video_upload else MAX_VOICE_UPLOAD if voice_upload else 65536
-            if declared>body_limit:return Response('Body too large',413)
-            # Also enforce the bound for chunked requests without Content-Length.
-            # Video route authenticates first and streams to disk with its own byte cap.
-            if not (video_upload or voice_upload):
-                chunks=[];received=0
-                async for chunk in request.stream():
-                    received+=len(chunk)
-                    if received>65536:return Response('Body too large',413)
-                    chunks.append(chunk)
-                request._body=b''.join(chunks)
-        result=await call_next(request)
-        result.headers['X-Content-Type-Options']='nosniff'
-        result.headers['Referrer-Policy']='strict-origin-when-cross-origin'
-        result.headers['X-Frame-Options']='DENY'
-        result.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org; media-src 'self' blob:; connect-src 'self' ws: wss:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
-        if request.url.path.startswith('/api'):result.headers['Cache-Control']='no-store'
-        elif request.url.path=='/' or request.url.path.endswith(('.html','.js','.css')):result.headers['Cache-Control']='no-cache'
-        return result
-
     def throttle(key,limit,window=60):
         ok,retry=limiter.allow(key,limit,window)
         if not ok:raise HTTPException(429,'rate_limited',headers={'Retry-After':str(retry)})
 
     def user_from(headers,cookies):
-        bearer=headers.get('authorization','')
-        token=bearer[7:] if bearer.startswith('Bearer ') else cookies.get('dm_session','')
+        token=request_token(headers,cookies)
+        claims=tokens.verify(token)
+        if not claims:return None
         with store.lock:
             r=store.db.execute('SELECT u.* FROM users u JOIN sessions s ON u.id=s.user_id WHERE s.token=? AND s.expires>?',(token_hash(token),time.time())).fetchone()
-            if not r:return None
+            if not r or r['id']!=claims['sub']:return None
             u=dict(r);u.pop('password',None)
             role=store.get('role',u['role'])
             u['permissions']=role['permissions'] if role else []
@@ -181,21 +154,21 @@ def create_app(db_path=None,demo=None):
 
     def require(request,permission=None):
         u=user_from(request.headers,request.cookies)
-        if not u:raise HTTPException(401,'authentication_required')
+        if not u:raise HTTPException(401,'authentication_required',headers={'WWW-Authenticate':'Bearer'})
         if permission and permission not in u['permissions']:raise HTTPException(403,'permission_denied')
         throttle('api:'+u['id'],300)
         return u
 
     def issue(user,response,cookie_session=True):
-        token=secrets.token_urlsafe(32)
+        token,expires=tokens.issue(user)
         with store.lock,store.db:
             store.db.execute('DELETE FROM sessions WHERE expires<?',(time.time(),))
-            store.db.execute('INSERT INTO sessions VALUES(?,?,?)',(token_hash(token),user['id'],time.time()+8*3600))
+            store.db.execute('INSERT INTO sessions VALUES(?,?,?)',(token_hash(token),user['id'],expires))
         if cookie_session:response.set_cookie('dm_session',token,httponly=True,samesite='strict',secure=os.getenv('SECURE_COOKIES')=='1',max_age=28800)
         if cookie_session and user['role'] in CITIZEN_ROLES:
             response.set_cookie('dm_citizen',token,httponly=True,samesite='strict',secure=os.getenv('SECURE_COOKIES')=='1',max_age=28800)
         # Bearer token lets CLI/load tests use the same authentication scheme.
-        return {'token':token,'user':{k:v for k,v in user.items() if k!='password'},'demo':demo}
+        return {'token':token,'token_type':'Bearer','expires_at':expires,'user':{k:v for k,v in user.items() if k!='password'},'demo':demo}
 
     @application.get('/api/health')
     def health():return {'ok':True,'demo':demo,'external_routing_configured':bool(os.getenv('ORS_API_KEY')),'dataset':'synthetic-training-baku-v1','public_url':os.getenv('DIGIMINDS_PUBLIC_URL') or None}
@@ -225,13 +198,15 @@ def create_app(db_path=None,demo=None):
     @application.post('/api/auth/logout')
     def logout(request:Request,response:Response):
         u=require(request)
-        bearer=request.headers.get('authorization','')
-        token=bearer[7:] if bearer.startswith('Bearer ') else request.cookies.get('dm_session','')
+        token=request_token(request.headers,request.cookies)
         with store.lock,store.db:store.db.execute('DELETE FROM sessions WHERE token=?',(token_hash(token),))
         response.delete_cookie('dm_session');return {'ok':True}
 
     @application.get('/api/state')
-    def state(request:Request):return store.snapshot(require(request))
+    def state(request:Request):
+        # Snapshot already contains JSON primitives. Avoid another recursive
+        # jsonable_encoder walk of every map edge for each operator poll.
+        return JSONResponse(store.snapshot(require(request)))
 
     def citizen(request):
         u = require(request)
@@ -313,21 +288,28 @@ def create_app(db_path=None,demo=None):
             store.audit(u['id'],'voice_notes.accessed',id)
             return {'notes':notes}
 
-    @application.post('/api/sos')
-    def sos(body:SOS,request:Request,response:Response):
+    def process_sos(body,request):
         u=require(request,'sos:create')
-        # Idempotent retry is accepted without consuming a second SOS quota.
-        with store.lock:
-            old=store.db.execute('SELECT id FROM reports WHERE user_id=? AND event_key=?',(u['id'],body.event_key)).fetchone()
-        if not old:throttle('sos:'+u['id'],8)
         try:
             with store.lock,store.db:
+                # Quota check and durable deduplication share one critical section.
+                # Concurrent retries cannot consume multiple NEW report allowances.
+                old=store.report_by_key(u['id'],body.event_key)
+                if not old:throttle('sos:'+u['id'],8)
                 data=body.model_dump();voice_note=data.pop('voice_note')
                 r,created=store.report(u['id'],**data)
                 if created and voice_note:
                     store.put('voice_note',{'id':r['id'],**voice_note,'created_at':r['created'],'user_confirmed':True})
         except ValueError as exc:raise HTTPException(409,str(exc))
+        return r,created
+
+    @application.post('/api/sos')
+    async def sos(body:SOS,request:Request,response:Response):
+        # SOS work has its own four slots, leaving the default worker pool for
+        # dispatcher reads and rescue actions. Admission bounds the waiting queue.
+        r,created=await anyio.to_thread.run_sync(process_sos,body,request,limiter=sos_workers)
         response.status_code=201 if created else 200
+        response.headers['X-SOS-Duplicate']='false' if created else 'true'
         return {'report':{k:v for k,v in r.items() if k!='user_id'},'created':created}
 
     @application.post('/api/me/safe')
@@ -536,7 +518,7 @@ def create_app(db_path=None,demo=None):
         return {'ok':True}
 
     # Declared before /api/demo/{scenario}, which would otherwise capture /api/demo/seismic.
-    install_seismic(application,store,require,throttle,demo)
+    install_seismic(application,store,require,throttle,demo,sos_workers)
 
     @application.post('/api/demo/{scenario}')
     def scenario(scenario:Literal['sos_wave','provider','websocket'],body:Switch,request:Request):
@@ -581,6 +563,8 @@ def create_app(db_path=None,demo=None):
     install_drills(application,store,require,user_from,origin_ok,throttle,demo)
     install_vision(application,vision_jobs,require,throttle,demo)
     install_voice(application,voice_service,require,throttle)
+    application.add_middleware(RequestGuards,origin_ok=origin_ok,video_limit=MAX_UPLOAD,voice_limit=MAX_VOICE_UPLOAD)
+    application.add_middleware(SOSGuard,limiter=limiter,tokens=tokens)
     application.mount('/',StaticFiles(directory=ROOT/'frontend',html=True),name='frontend')
     return application
 

@@ -69,15 +69,17 @@ def test_mass_unique_sos_then_replay(tmp_path):
     tokens = []
     with store.lock, store.db:
         for i in range(200):
-            token = uuid.uuid4().hex
+            token,expires = app.state.tokens.issue({'id':str(i),'role':'citizen'})
             tokens.append(token)
             store.db.execute('INSERT INTO users VALUES(?,?,?,NULL,NULL)', (str(i), 'load-'+str(i), 'citizen'))
-            store.db.execute('INSERT INTO sessions VALUES(?,?,?)', (hashlib.sha256(token.encode()).hexdigest(), str(i), time.time()+3600))
+            store.db.execute('INSERT INTO sessions VALUES(?,?,?)', (hashlib.sha256(token.encode()).hexdigest(), str(i), expires))
 
     async def burst():
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url='http://test') as client:
-            semaphore = asyncio.Semaphore(40)
+            # Below the 16-slot flood admission bound: every genuine reporter
+            # must still be counted. Separate flood tests assert 429 semantics.
+            semaphore = asyncio.Semaphore(8)
             events = [body() for _ in tokens]
             async def send(i):
                 async with semaphore:

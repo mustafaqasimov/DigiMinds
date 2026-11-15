@@ -46,7 +46,7 @@ async def run(args):
         if result['errors'] or not result['rate_limit_verified'] or not result['one_creation_per_citizen']:raise SystemExit(1)
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('--base-url',default='http://127.0.0.1:3000');p.add_argument('--users',type=int,default=24);p.add_argument('--requests',type=int,default=1000);p.add_argument('--concurrency',type=int,default=40);p.add_argument('--output')
+    p=argparse.ArgumentParser();p.add_argument('--base-url',default='http://127.0.0.1:3000');p.add_argument('--users',type=int,default=24);p.add_argument('--requests',type=int,default=1000);p.add_argument('--concurrency',type=int,default=8);p.add_argument('--output')
     p.add_argument('--isolated',action='store_true',help='Use a disposable local HTTP test fixture; do not alter demo data')
     args=p.parse_args()
     if not 1<=args.users<=32 or args.requests<args.users or args.concurrency<1:

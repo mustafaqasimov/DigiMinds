@@ -18,6 +18,12 @@ jobs:
       - run: python -m pytest -q
       - run: node --test tests/*.test.mjs
       - run: python tools/load_test.py --isolated --requests 1000
+      - run: python tools/flood_test.py --requests 600 --output flood-results.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sos-flood-results
+          path: flood-results.json
   windows-start:
     runs-on: windows-latest
     steps:
