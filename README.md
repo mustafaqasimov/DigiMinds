@@ -58,6 +58,10 @@ və səs, qəbul göstəriciləri və ümumi dayandırma. [Təqdimat təlimatı 
 
 “4 fərqli SOS” burada 4 unikal hesabatdır; hadisənin `+1` sayğacı ilə ayrı saxlanır. Eyni vətəndaş müxtəlif hadisələr barədə ayrıca hesabat verə bilər. “Təhlükəsizəm” aktiv yardım sayını azaldır, daxil olmuş SOS tarixçəsini silmir. Radius qaydası yaxınlıqdakı SOS koordinatlarını dairə mərkəzləri kimi yoxlayır; tranzitiv DBSCAN zənciri istifadə edilmir.
 
+## Xarici API nasazlığına davamlılıq
+
+**Yeni subtask — xarici xəritə/marşrut API nasazlığı:** 503 və uzun cavabda avtomatik lokal Dijkstra, 4,5 saniyəlik provayder limiti, closed/open/half-open circuit breaker, 4 paralel çağırış limiti və üç dildə daimi ehtiyat rejimi bildirişi. Xəritə tile-ları yüklənməyəndə lokal Bakı xəritəsi açılır. Dispetçerin **Challenge laboratoriyası** bölməsində **HTTP 503 yarat**, **6 saniyə gecikdir**, **Servisi bərpa et** düymələri ilə yoxlayın. [Araşdırma, memarlıq və jüri nümayişi](docs/routing-resilience.md).
+
 ## Vətəndaş təhlükəsizlik profili
 
 Vətəndaş panelində **Təhlükəsizlik profilim** düyməsi və ya `/#profile` açın. Yaş, hərəkət/əlçatanlıq ehtiyacları, nəqliyyat, ailə və təcili əlaqəni ayrı kartlarda daxil edib saxlayın. Şəxsi hazırlıq siyahısı bu seçimlərə uyğun dəyişir. Paylaşma standart olaraq bağlıdır; razılıq veriləndə yalnız aktiv SOS-a baxan səlahiyyətli operator və təyin edilmiş briqada yardım profilini aça bilir.

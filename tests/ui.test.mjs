@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import {renderLayout} from '../frontend/ui.js';
 import {translations} from '../frontend/i18n.js';
 import {uiTranslations} from '../frontend/ui-i18n.js';
+import {resilienceMessages} from '../frontend/resilience-i18n.js';
 const data=JSON.parse(fs.readFileSync(new URL('../frontend/demo-map.json',import.meta.url)));
 function context(permissions=[],extra={}){
  const words={...translations.en,...uiTranslations.en};
@@ -41,4 +42,17 @@ test('offline shell includes every module used by the redesigned workspace',()=>
  const sw=fs.readFileSync(new URL('../frontend/sw.js',import.meta.url),'utf8');
  for(const file of ['ui.js','ui-i18n.js','map.js','fonts.css','product-theme.css','product-ui.js'])assert.ok(sw.includes(`'/${file}'`));
  for(const locale of ['az','en','ru'])assert.deepEqual(Object.keys(uiTranslations[locale]).sort(),Object.keys(uiTranslations.en).sort());
+});
+test('fallback remains visible with the drawer closed in all three languages',()=>{
+ for(const locale of ['az','en','ru']){
+  const words={...translations[locale],...uiTranslations[locale],...resilienceMessages[locale]};
+  const c=context([],{lang:locale,routing:{mode:'fallback'},t:k=>words[k]||k});
+  c.ui.drawer=false;c.ui.mapStatus='fallback';
+  const html=renderLayout(c);
+  assert.ok(html.includes('resilience-banner '));
+  assert.ok(html.includes('aria-live="polite"'));
+  assert.ok(html.includes(words.routeFallback));
+  assert.ok(html.includes(words.mapFallback));
+  assert.deepEqual(Object.keys(resilienceMessages[locale]).sort(),Object.keys(resilienceMessages.en).sort());
+ }
 });

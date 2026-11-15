@@ -1,3 +1,5 @@
+import {resolveRoute} from './routing-client.js';
+import {resilienceMessages} from './resilience-i18n.js';
 import {translations} from './i18n.js';
 import {uiTranslations} from './ui-i18n.js';
 import {renderLayout} from './ui.js';
@@ -5,6 +7,7 @@ import {mountMap,mapCommand} from './map.js';
 import {createProfileUI} from './profile.js';
 import {createEarthquakeDemo} from './earthquake.js';
 import {quakeMessages} from './earthquake-i18n.js';
+for (const locale of Object.keys(resilienceMessages)) Object.assign(translations[locale],resilienceMessages[locale]);
 for (const locale of Object.keys(uiTranslations)) Object.assign(translations[locale], uiTranslations[locale]);
 for (const locale of Object.keys(quakeMessages)) translations[locale].earthquakeDemo=quakeMessages[locale].launch;
 import {localRoutes,outbox,cache} from './offline.js';
@@ -18,7 +21,7 @@ const ui={drawer:null,legend:false,panel:null,search:'',filter:'all',selected:nu
 let profileOpen=location.hash==='#profile';
 let healthReady=false;
 let dialogOpener=null,lastDialog=null,ignoreMapClickUntil=0;
-let user=null,state=null,health={demo:false},view='citizen',connection='offline',ws=null,reconnectTimer=null,retries=0,route=null,routeSequence=0,mode=localStorage.getItem('dm_mode')||'local',origin={lat:40.37,lng:49.8385},pending=[],adminData=null,syncing=false,lastMapSignature='',autoRouteTimer=null;
+let user=null,state=null,health={demo:false},view='citizen',connection='offline',ws=null,reconnectTimer=null,retries=0,route=null,routing=null,routeSequence=0,mode=localStorage.getItem('dm_mode')||'auto',origin={lat:40.37,lng:49.8385},pending=[],adminData=null,syncing=false,lastMapSignature='',autoRouteTimer=null;
 const can=p=>user?.permissions?.includes(p), operator=()=>can('dashboard:read'), actionable=()=>can('incident:act');
 const fmtTime=v=>new Date(v*1000).toLocaleTimeString(lang==='az'?'az-AZ':lang==='ru'?'ru-RU':'en-GB',{hour:'2-digit',minute:'2-digit'});
 let toastTimer;function toast(message){$('#toast').textContent=message;$('#toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),4500);}
@@ -27,7 +30,7 @@ function errorToast(e){toast(e.message==='outside_demo_area'?t('outOfArea'):e.st
 const profileUI=createProfileUI({api,language:()=>lang,toast,online:()=>connection!=='offline',demo:()=>health.demo});
 const quake=createEarthquakeDemo({api,beforeOpen:()=>{ui.dialog=null;render();},onSOS:()=>{ui.dialog='sos';render();}});
 function setConnection(next){if(connection!==next){connection=next;render();}}
-function consume(s){const changed=!state||state.revision!==s.revision||s.shelters.some((v,i)=>v.stale!==state.shelters[i]?.stale);const roleChanged=s.viewer&&user?.role!==s.viewer.role;state=s;if(s.viewer){user=s.viewer;if(roleChanged)view=operator()?'dispatcher':can('assignment:read')?'responder':'citizen';if(view!=='citizen'&&!operator()&&!can('assignment:read'))view='citizen';}const pub={map:s.map,roads:s.roads,shelters:s.shelters,config:s.config,server_time:s.server_time,revision:s.revision,dataset:s.dataset,incidents:[],stats:s.stats};cache.put('map',pub).catch(()=>{});const signature=JSON.stringify([s.roads.filter(r=>r.blocked).map(r=>r.id),s.shelters.map(x=>[x.id,x.status,x.occupancy,x.capacity])]);if(lastMapSignature&&lastMapSignature!==signature&&route){clearTimeout(autoRouteTimer);autoRouteTimer=setTimeout(()=>findRoute(true),180);}lastMapSignature=signature;if(changed)render();}
+function consume(s){const changed=!state||state.revision!==s.revision||s.shelters.some((v,i)=>v.stale!==state.shelters[i]?.stale);const roleChanged=s.viewer&&user?.role!==s.viewer.role;state=s;if(s.viewer){user=s.viewer;if(roleChanged)view=operator()?'dispatcher':can('assignment:read')?'responder':'citizen';if(view!=='citizen'&&!operator()&&!can('assignment:read'))view='citizen';}const pub={map:s.map,roads:s.roads,shelters:s.shelters,config:s.config,server_time:s.server_time,revision:s.revision,dataset:s.dataset,incidents:[],stats:s.stats};cache.put('map',pub).catch(()=>{});const signature=JSON.stringify([s.roads.filter(r=>r.blocked).map(r=>r.id),s.shelters.map(x=>[x.id,x.status,x.occupancy,x.capacity])]);if(lastMapSignature&&lastMapSignature!==signature){clearTimeout(autoRouteTimer);autoRouteTimer=setTimeout(()=>findRoute(true),180);}lastMapSignature=signature;if(changed)render();}
 async function refresh(){try{if(!healthReady){health=await api('/health');healthReady=true;}consume(await api('/state'));if(connection!=='live')setConnection('polling');if(user&&!ws&&!reconnectTimer)connect();await flush();}catch(e){if(e.network)setConnection('offline');else if(e.status===401){closeSocket();setConnection('offline');}}}
 function closeSocket(){clearTimeout(reconnectTimer);reconnectTimer=null;if(ws){ws.onclose=null;ws.close();ws=null;}}
 function connect(){closeSocket();if(!user)return;const socket=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws`);ws=socket;socket.onopen=()=>{retries=0;setConnection('live');flush();};socket.onmessage=event=>{try{const payload=JSON.parse(event.data);if(payload.type==='state')consume(payload.data);}catch{}};socket.onclose=()=>{if(ws!==socket)return;setConnection(navigator.onLine?'polling':'offline');reconnectTimer=setTimeout(connect,Math.min(12000,800*2**Math.min(retries++,4))+Math.random()*300);};socket.onerror=()=>socket.close();}
@@ -59,7 +62,7 @@ function render(forceProfile=false){
  const drafts=[...document.querySelectorAll('form input,form select')].map(el=>({form:el.form?.id,item:el.form?.dataset.id,name:el.name,value:el.value,checked:el.checked}));
  if(ui.dialog&&!lastDialog)dialogOpener={id:focusId,action:focusAction};
  const retainedMap=document.getElementById('city-map');
- $('#app').innerHTML=renderLayout({state,user,health,view,connection,route,origin,pending,mode,lang,ui,adminData,t,esc,icon,can,fmtTime});
+ $('#app').innerHTML=renderLayout({state,user,health,view,connection,route,routing,origin,pending,mode,lang,ui,adminData,t,esc,icon,can,fmtTime});
  if(retainedMap)document.getElementById('city-map')?.replaceWith(retainedMap);
  mountMap({state,user,view,connection,route,origin,ui,t,esc,icon},{onLocation:async point=>{origin={lat:point.lat,lng:point.lng};ui.chooseLocation=false;await findRoute();}});
  for(const el of document.querySelectorAll('[data-scroll]'))el.scrollTop=scrolls[el.dataset.scroll]||0;
@@ -72,8 +75,23 @@ function render(forceProfile=false){
  if(focus){focus.focus({preventScroll:true});if(selectionStart!=null&&focus.setSelectionRange)try{focus.setSelectionRange(selectionStart,selectionEnd);}catch{}}
  lastDialog=ui.dialog;
 }
-function resetWorkspace(){profileOpen=false;profileUI.reset();ui.drawer=null;ui.panel=null;ui.selected=null;ui.search='';ui.editRoads=false;ui.chooseLocation=false;ui.dialog=null;}
-async function findRoute(automatic=false){const seq=++routeSequence;try{let result;if(connection==='offline'){result=localRoutes(state,origin);}else{result=(await api(`/routes?lat=${origin.lat}&lng=${origin.lng}&mode=${mode}`)).routes;}if(seq!==routeSequence)return;const previous=route;route=result[0]||null;render();if(automatic&&JSON.stringify(previous?.geometry)!==JSON.stringify(route?.geometry))toast(t('routeUpdated'));}catch(e){if(seq!==routeSequence)return;if(e.network){setConnection('offline');route=localRoutes(state,origin)[0]||null;render();}else{route=null;render();errorToast(e);}}}
+function resetWorkspace(){clearTimeout(routeRecoveryTimer);++routeSequence;routing=null;route=null;ui.routeLoading=false;profileOpen=false;profileUI.reset();ui.drawer=null;ui.panel=null;ui.selected=null;ui.search='';ui.editRoads=false;ui.chooseLocation=false;ui.dialog=null;}
+let routeRecoveryTimer=null;
+async function findRoute(automatic=false){
+ const seq=++routeSequence;clearTimeout(routeRecoveryTimer);ui.routeLoading=true;render();
+ try{
+  const result=await resolveRoute({request:api,getState:()=>state,origin:{...origin},mode,online:connection!=='offline'});
+  if(seq!==routeSequence)return;
+  const previous=route;route=result.routes[0]||null;routing={...result.routing,local_error:result.local_error,no_route:!route};
+  ui.routeLoading=false;render();
+  if(result.local_error)toast(t(result.local_error==='outside_demo_area'?'outOfArea':'routeDataMissing'));
+  if(automatic&&JSON.stringify(previous?.geometry)!==JSON.stringify(route?.geometry))toast(t('routeUpdated'));
+  if(routing.mode==='fallback'&&connection!=='offline'&&mode==='auto'){
+   const seconds=Math.max(5,routing.circuit?.retry_after_seconds||30);
+   routeRecoveryTimer=setTimeout(()=>findRoute(true),(seconds+Math.random())*1000);
+  }
+ }catch(error){if(seq!==routeSequence)return;route=null;routing=null;ui.routeLoading=false;render();errorToast(error);}
+}
 async function sendSOS(type,incident_id){if(ui.sending)return;if(!can('sos:create')&&connection!=='offline'){toast(t('citizen')+' · '+t('login'));return;}ui.sending=true;render();const data={event_key:crypto.randomUUID(),type,...origin,client_time:Date.now()/1000,...(incident_id?{incident_id}:{})};try{if(connection==='offline')throw Object.assign(Error('network'),{network:true});await api('/sos',{method:'POST',body:JSON.stringify(data)});ui.dialog=null;toast(t('sent'));await refresh();}catch(e){if(e.network){if(!user){toast(t('login'));return;}if(pending.length>=50){toast(t('rateLimit'));return;}await outbox.put({...data,owner:user.id});pending=await outbox.all();ui.dialog=null;setConnection('offline');render();toast(t('queued'));}else errorToast(e);}finally{ui.sending=false;render();}}
 async function flush(){if(syncing||!pending.length||connection==='offline'||!can('sos:create'))return;syncing=true;try{for(const item of pending){if(item.owner!==user.id)continue;const {owner,...data}=item;await api('/sos',{method:'POST',body:JSON.stringify(data)});await outbox.remove(item.event_key);}pending=await outbox.all();render();}catch(e){if(!e.network&&e.status!==429)errorToast(e);}finally{syncing=false;}}
 async function signIn(username,password){try{await api('/auth/login',{method:'POST',body:JSON.stringify({username,password})});closeSocket();resetWorkspace();route=null;state=null;await identity();consume(await api('/state'));connect();if(can('role:write'))await loadAdmin();render();}catch(e){errorToast(e);}}
@@ -97,6 +115,7 @@ document.addEventListener('click',async e=>{
   if(b.dataset.alert){await api(`/alerts/${b.dataset.alert}/${b.dataset.command}`,{method:'POST'});toast(t('confirmed'));await refresh();return;}
   if(b.dataset.occupancy){const s=state.shelters.find(s=>s.id===b.dataset.occupancy);await api(`/shelters/${s.id}/occupancy`,{method:'PATCH',body:JSON.stringify({occupancy:Math.ceil(s.capacity*Number(b.dataset.percent)/100),source:'manual'})});await refresh();return;}
   if(b.dataset.team){await api('/teams/'+b.dataset.team,{method:'PATCH',body:JSON.stringify({status:b.dataset.status})});await refresh();return;}
+  if(b.dataset.providerScenario){await api('/demo/routing-provider',{method:'POST',body:JSON.stringify({mode:b.dataset.providerScenario})});mode='auto';await findRoute();return;}
   if(b.dataset.scenario){const k=b.dataset.scenario;await api('/demo/'+k,{method:'POST',body:JSON.stringify({enabled:k==='sos_wave'?true:!state.failures?.[k]})});await refresh();return;}
   switch(b.dataset.action){
    case'profile':if(user?.role==='citizen'){profileOpen=true;history.pushState(null,'','#profile');render();}break;
@@ -105,6 +124,7 @@ document.addEventListener('click',async e=>{
    case'close-modal':ui.dialog=null;render();break;
    case'logout':resetWorkspace();await api('/auth/logout',{method:'POST'});closeSocket();await api('/auth/guest',{method:'POST'});await identity();await refresh();connect();await findRoute();break;
    case'route':await findRoute();break;
+   case'route-test':mode='auto';await findRoute();break;
    case'zoom-in':mapCommand('zoom-in');break;
    case'zoom-out':mapCommand('zoom-out');break;
    case'close-detail':ui.selected=null;render();break;
@@ -130,7 +150,7 @@ document.addEventListener('click',async e=>{
   }
  }catch(error){errorToast(error);}
 });
-window.addEventListener('online',()=>{refresh();connect();});window.addEventListener('offline',()=>{closeSocket();setConnection('offline');});
+window.addEventListener('online',()=>{refresh();connect();findRoute(true);});window.addEventListener('offline',()=>{closeSocket();setConnection('offline');findRoute(true);});
 bootstrap().catch(errorToast);
 
 document.addEventListener('input',event=>{if(['workspace-search','panel-search'].includes(event.target.id)){ui.search=event.target.value;ui.drawer=true;ui.selected=null;render();}});
@@ -148,5 +168,7 @@ document.addEventListener('keydown',event=>{
 });
 document.addEventListener('map-select',event=>{ui.drawer=true;ui.selected=event.detail;render();});
 
-function applyEntry(){const entry=location.hash.slice(1);profileOpen=entry==='profile';if(entry==='sos')ui.dialog='sos';if(['shelters','safe','route'].includes(entry)){ui.drawer=true;ui.panel='shelters';}if(entry==='dispatcher'){if(operator()){view='dispatcher';ui.drawer=true;}else ui.dialog='login';}if(entry==='offline'){ui.offlineMap=true;mode='local';}}
+function applyEntry(){const entry=location.hash.slice(1);profileOpen=entry==='profile';if(entry==='sos')ui.dialog='sos';if(['shelters','safe','route'].includes(entry)){ui.drawer=true;ui.panel='shelters';}if(entry==='dispatcher'){if(operator()){view='dispatcher';ui.drawer=true;}else ui.dialog='login';}if(entry==='offline'){ui.offlineMap=true;mode='local';findRoute();}}
 window.addEventListener('hashchange',()=>{applyEntry();render();});
+
+document.addEventListener('map-status',event=>{const status=event.detail.status;if(ui.mapStatus!==status){ui.mapStatus=status;render();}});

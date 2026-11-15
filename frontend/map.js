@@ -9,7 +9,7 @@ export function mountMap(c,{onLocation}){
   if(map){base?.dispose();map.remove();}
   container=element;
   map=L.map(element,{zoomControl:false,attributionControl:true,minZoom:11,maxZoom:19,zoomSnap:.5}).setView([40.374,49.847],15);
-  base=addBase(map,{offline:!!c.ui.offlineMap,onStatus:status=>{element.dataset.mapStatus=status;const badge=document.getElementById('base-map-status');if(badge)badge.textContent=status==='online'?'OpenStreetMap':status==='unavailable'?'Xəritə məlumatı əlçatan deyil':'Oflayn · OpenStreetMap';}});
+  base=addBase(map,{offline:!!c.ui.offlineMap,onStatus:status=>{element.dataset.mapStatus=status;queueMicrotask(()=>document.dispatchEvent(new CustomEvent('map-status',{detail:{status}})));}});
   overlays=L.layerGroup().addTo(map);
   L.control.scale({imperial:false,position:'bottomleft'}).addTo(map);
   map.on('click',event=>{if(context.ui.chooseLocation)onLocation(event.latlng);});

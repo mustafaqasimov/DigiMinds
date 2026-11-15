@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import json
+import math
 import os
 import secrets
 import time
@@ -13,7 +14,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ConfigDict
 from .store import Store, uid
 from .security import Limiter, password_hash, check_password, token_hash, PERMISSIONS
-from .geo import blocked_polygons, crosses_closure
+from .geo import blocked_polygons, crosses_closure, distance
+from .circuit import CircuitBreaker
 from .drills import install_drills
 from .profiles import ProfileUpdate, profile_record, shared_profiles
 
@@ -60,6 +62,10 @@ class Switch(StrictModel):
     enabled:bool
 
 
+class ProviderScenario(StrictModel):
+    mode:Literal['off','healthy','http_503','slow']
+
+
 class Assignment(StrictModel):
     role:str=Field(max_length=40)
     team_id:str|None=Field(default=None,max_length=40)
@@ -71,7 +77,9 @@ def create_app(db_path=None,demo=None):
     limiter=Limiter()
     application=FastAPI(title='DigiMinds · Urban Crisis Engine',version='0.1.0')
     application.state.store=store;application.state.limiter=limiter
-    application.state.external_failures=0;application.state.circuit_until=0.
+    application.state.routing_circuit=CircuitBreaker()
+    application.state.provider_timeout=4.5
+    application.state.routing_transport=None
     with store.lock,store.db:
         if demo:
             for role in ('dispatcher','admin','responder','observer'):
@@ -262,37 +270,79 @@ def create_app(db_path=None,demo=None):
 
     @application.get('/api/routes')
     async def routes(request:Request,lat:float,lng:float,mode:Literal['auto','local']='auto'):
+        started=time.monotonic()
         u=require(request);throttle('route:'+u['id'],30)
         if not (-90<=lat<=90 and -180<=lng<=180):raise HTTPException(422,'invalid_coordinates')
         with store.lock:
             try:choices=store.local_routes(lat,lng)
             except ValueError as exc:raise HTTPException(422,str(exc))
             cfg=store.config();polys=blocked_polygons(store.map['nodes'],store.objects('road'));revision=store.revision
+        breaker=application.state.routing_circuit
+        scenario=cfg.get('routing_demo','off') if demo else 'off'
+        if cfg['provider_down'] and demo:scenario='http_503'
+        configured=bool(os.getenv('ORS_API_KEY')) or scenario!='off'
         reason='local_selected' if mode=='local' else 'external_not_configured'
-        if choices and mode=='auto' and os.getenv('ORS_API_KEY'):
-            if cfg['provider_down'] or time.time()<application.state.circuit_until:reason='provider_unavailable'
-            else:
+        attempted=False
+        if choices and mode=='auto' and configured:
+            permit,reason=breaker.acquire()
+            if permit:
+                attempted=True;success=None
                 try:
                     destination=choices[0]['geometry'][-1]
                     body={'coordinates':[[lng,lat],destination]}
                     if polys:body['options']={'avoid_polygons':{'type':'MultiPolygon','coordinates':polys}}
-                    async with httpx.AsyncClient(timeout=3.0) as client:
-                        result=await client.post(os.getenv('ORS_URL','https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson'),headers={'Authorization':os.environ['ORS_API_KEY']},json=body)
-                        result.raise_for_status();feature=result.json()['features'][0]
-                        coords=feature['geometry']['coordinates'];summary=feature['properties']['summary']
-                        if len(coords)<2 or crosses_closure(coords,polys):raise ValueError('invalid_provider_route')
-                        choices[0].update(geometry=coords,meters=round(summary['distance']),minutes=round(summary['duration']/60,1),source='external_ors')
-                        application.state.external_failures=0;reason=None
-                except (httpx.HTTPError,ValueError,KeyError,IndexError,TypeError):
-                    application.state.external_failures+=1
-                    if application.state.external_failures>=3:application.state.circuit_until=time.time()+30
-                    reason='provider_failed_local_fallback'
+                    transport=application.state.routing_transport
+                    if scenario!='off':
+                        async def simulate(req):
+                            if scenario=='http_503':return httpx.Response(503,request=req,json={'error':'simulation'})
+                            if scenario=='slow':await asyncio.sleep(6)
+                            r=choices[0]
+                            return httpx.Response(200,request=req,json={'features':[{'geometry':{'coordinates':r['geometry']},'properties':{'summary':{'distance':r['meters'],'duration':r['minutes']*60}}}]})
+                        transport=httpx.MockTransport(simulate)
+                    # A total wall-clock deadline includes connect/TLS, body and parsing.
+                    # HTTPX read timeouts alone only bound gaps between body chunks.
+                    async with asyncio.timeout(application.state.provider_timeout):
+                        async with httpx.AsyncClient(timeout=httpx.Timeout(4.5,connect=2.,pool=.2),transport=transport) as client:
+                            result=await client.post(os.getenv('ORS_URL','https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson'),headers={'Authorization':os.getenv('ORS_API_KEY','demo')},json=body)
+                            result.raise_for_status()
+                            if len(result.content)>2_000_000:raise ValueError('provider_payload_too_large')
+                            feature=result.json()['features'][0]
+                            coords=feature['geometry']['coordinates'];summary=feature['properties']['summary']
+                            if not isinstance(coords,list) or not 2<=len(coords)<=20000:raise ValueError('invalid_provider_route')
+                            if any(not isinstance(p,list) or len(p)<2 or any(not isinstance(v,(int,float)) or not math.isfinite(v) for v in p[:2]) or not -180<=p[0]<=180 or not -90<=p[1]<=90 for p in coords):raise ValueError('invalid_coordinates')
+                            meters,seconds=float(summary['distance']),float(summary['duration'])
+                            if not all(math.isfinite(v) and v>=0 for v in (meters,seconds)):raise ValueError('invalid_summary')
+                            if distance((lat,lng),(coords[0][1],coords[0][0]))>250 or distance((destination[1],destination[0]),(coords[-1][1],coords[-1][0]))>100 or crosses_closure(coords,polys):raise ValueError('invalid_provider_route')
+                            choices[0].update(geometry=coords,meters=round(meters),minutes=round(seconds/60,1),source='simulated_provider' if scenario!='off' else 'external_ors')
+                            success=True;reason=None
+                except (TimeoutError,httpx.TimeoutException):success=False;reason='provider_timeout'
+                except httpx.HTTPStatusError as exc:success=False;reason='provider_http_'+str(exc.response.status_code)
+                except httpx.HTTPError:success=False;reason='provider_network_error'
+                except (ValueError,KeyError,IndexError,TypeError,OverflowError):success=False;reason='invalid_provider_response'
+                finally:breaker.finish(permit,success,reason)
         if cfg['provider_down'] and mode=='auto':reason='provider_unavailable'
-        # External calls yield: closures/occupancy can change while awaiting them.
+        # Never return a cached external path through a newly closed road/full shelter.
         with store.lock:
             if store.revision!=revision:
                 choices=store.local_routes(lat,lng);reason='state_changed_local_recalculation'
-        return {'routes':choices,'fallback_reason':reason,'calculated_at':time.time(),'dataset':'SIMULATION','no_route':not choices}
+        if not choices:reason='no_eligible_route'
+        service_mode='online' if reason is None else 'local' if reason in ('local_selected','external_not_configured','no_eligible_route') else 'fallback'
+        routing={'mode':service_mode,'reason':reason,'circuit':breaker.snapshot(),
+                 'deadline_ms':round(application.state.provider_timeout*1000),'elapsed_ms':round((time.monotonic()-started)*1000),
+                 'external_attempted':attempted,'demo_provider':scenario!='off'}
+        return {'routes':choices,'fallback_reason':reason,'routing':routing,
+                'message':'Oflayn/ehtiyat marşrut rejimində işləyir' if service_mode=='fallback' else None,
+                'calculated_at':time.time(),'dataset':'SIMULATION','no_route':not choices}
+
+    @application.post('/api/demo/routing-provider')
+    def routing_scenario(body:ProviderScenario,request:Request):
+        u=require(request,'demo:write')
+        if not demo:raise HTTPException(404,'not_found')
+        with store.lock,store.db:
+            cfg=store.config();cfg['routing_demo']=body.mode;cfg['provider_down']=False
+            store.put('config',cfg);store.audit(u['id'],'demo.routing_provider',body.mode)
+        # Restoring the provider does not bypass an open circuit's cooldown.
+        return {'ok':True,'mode':body.mode,'circuit':application.state.routing_circuit.snapshot()}
 
     @application.patch('/api/shelters/{id}/occupancy')
     def occupancy(id:str,body:Occupancy,request:Request):
