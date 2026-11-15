@@ -28,9 +28,13 @@ Command: `python tools/load_test.py --isolated`. Temporary SQLite database and a
 
 A subsequent fresh-key flood from one identity correctly received `429` and `Retry-After`. The 1,000-delivery test measures retry-heavy load; it is not a claim of 1,000 unique new citizens or production capacity. The separate 200-identity test covers unique report creation.
 
-## YOLO CPU smoke test
+## Original YOLO11 CPU smoke test (superseded by YOLO26)
 
 Ultralytics 8.4.213, YOLO11n weights, CPU, confidence 0.35. Official Ultralytics `bus.jpg` sample produced **4 person detections**. Worker output was partial coverage and unpublished; no invented physical area or density was used. Geometry tests separately check ROI ground contact, calibrated density and no accumulation across frames. This verifies actual inference, not accuracy on a local shelter CCTV dataset. No real camera/RTSP stream was supplied.
+
+## YOLO26 upgrade
+
+The default worker now uses YOLO26n at 960 / confidence 0.25. Real CPU inference was compared with YOLO11n, YOLO26s and YOLO26m on identical video frames. A full 62-frame worker run, a four-person bus image, a zero-detection image, geometry validation and sensor API integration were checked. See [full results and limitations](yolo26-validation.md) and [machine-readable measurements](yolo26-benchmark.json).
 
 ## Browser observations
 

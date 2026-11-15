@@ -81,8 +81,10 @@ Offline ilk açılışdan sonra və HTTPS/localhost üzərində işləyir. Brauz
 
 ```bash
 python -m pip install -r requirements-vision.txt
-python -m vision.worker --source path/to/video.mp4 --model yolo11n.pt
+python -m vision.worker --source path/to/video.mp4 --save-preview data/yolo-preview.jpg
 ```
+
+**Standart model: YOLO26n**, giriş ölçüsü 960, etibar həddi 0.25, maksimum 1000 aşkarlama. `ultralytics==8.4.213` saxlanılır; bu versiyada YOLO26 dəstəyi var. Kamera üçün model/ölçü seçimi və real test nəticələri: [YOLO26 sınağı](docs/yolo26-validation.md). `--model yolo26s.pt` və `--model yolo26m.pt` də istifadə edilə bilər; bu nümunədə daha böyük variantlar üstün nəticə vermədi.
 
 GPU-suz quraşdırma üçün əvvəl PyTorch-un CPU paketlərini quraşdırmaq olar; `uv` varsa `uv pip install -r requirements-vision.txt --torch-backend cpu`. Model çəkisini ilk dəfə internetdən alır; sonra yerli `--model` yolu ilə offline işləyir. Mənbə lokal şəkil/video, kamera indeksi `0` və ya səlahiyyətli RTSP URL ola bilər. Ayrı sensor prosesi API-ni bloklamır.
 
@@ -93,6 +95,8 @@ Standart `partial` rejim yalnız ölçməni stdout-a verir. Kameranın bütün d
 python -m vision.worker --source path/to/video.mp4 --coverage full \
   --publish --shelter s1 --api http://127.0.0.1:3000 --area-m2 600
 ```
+
+`--save-preview` son kadrı insan qutuları və sayla göstərən şəkil yaradır. `--imgsz 640` daha sürətli rejim, `--imgsz 1280` isə kiçik hədəflər üçün sınana bilən rejimdir. Aşkarlama limitinə çatanda xəbərdarlıq qaytarılır və doluluq göndərişi bloklanır.
 
 `--area-m2` real görünən sahədir, piksel sahəsi deyil. `--roi roi.json` üçün format `[[x,y],[x,y],[x,y],...]`; şəxs qutusunun alt mərkəzi poliqonda sayılır. Kadrlar üzrə saylar bir-birinin üstünə yığılmır. Natamam görünüş ümumi tutum faizinə çevrilmir. Sıx izdiham/örtülmə üzrə ayrıca kalibrasiya lazımdır; bu versiya giriş-çıxış turniket sayğacı və çoxkameralı şəxs deduplikasiyası etmir.
 
