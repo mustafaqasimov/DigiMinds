@@ -6,7 +6,7 @@ Digital Challenge üçün işləyən FastAPI + WebSocket + offline web tətbiqi.
 
 ![Dispetçer paneli — sintetik demo](docs/preview.jpg)
 
-**Yeni UI/UX:** xəritə əsaslı iş sahəsi, hadisə filtrləri, məntəqə detalları, qatlar, təhlükəsiz yol idarəetməsi və mobil düzülüş. Dizayn qərarları və yoxlamalar: [ui-ux.md](docs/ui-ux.md).
+**Yeni UI/UX:** vətəndaş üçün Watch Duty quruluşunda sarı başlıq və tam xəritə; dispetçer üçün Perimeter quruluşunda ağ başlıq, axtarış, xəritə alətləri və açılıb-bağlanan panel. Dizayn qərarları və yoxlamalar: [ui-ux.md](docs/ui-ux.md).
 
 ## Başlatmaq
 

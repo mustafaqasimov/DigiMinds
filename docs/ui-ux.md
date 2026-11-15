@@ -26,3 +26,13 @@ The citizen and dispatcher screens now share a map workspace instead of a vertic
 - Responsive CSS inspected using browser zoom at 545 and 337 CSS-pixel widths, with no horizontal document overflow. This is a narrow-viewport browser check, not a physical-device audit. A tablet grid-column bug and missing labels on mobile icon controls were corrected during this pass.
 
 The basemap and operational data are still synthetic training data, visibly labelled in the interface. This redesign does not make the prototype official evacuation guidance.
+
+
+## Reference-faithful revision
+
+At the user's request the previous custom green dashboard was replaced with two separate reference layouts:
+
+- **Citizen / Watch Duty:** yellow masthead, centered black wordmark, full-screen map, stacked Layers/Legend controls, bottom search and an incident drawer. DigiMinds route and SOS actions use this shell.
+- **Dispatcher / Perimeter:** white logo/search header, slim white map toolbar, floating information panel, upper-right zoom and lower-right round layer/add controls.
+
+Original product logos and source code are not included. The visible structures were reimplemented around DigiMinds APIs. The synthetic offline map and backend behavior remain. This revision received JavaScript syntax checks, the existing lightweight UI/routing checks, and a short browser check of both layouts, SOS dialog and search. The backend/load/Windows suites were not rerun locally for this styling revision.
