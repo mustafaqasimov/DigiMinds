@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+.pytest_cache/
+data/*.db*
+.env
+node_modules/
+test-results/
+*.pt
+*.mp4
+*.avi
