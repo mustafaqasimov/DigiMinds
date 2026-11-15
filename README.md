@@ -62,6 +62,18 @@ və səs, qəbul göstəriciləri və ümumi dayandırma. [Təqdimat təlimatı 
 
 **Yeni subtask — xarici xəritə/marşrut API nasazlığı:** 503 və uzun cavabda avtomatik lokal Dijkstra, 4,5 saniyəlik provayder limiti, closed/open/half-open circuit breaker, 4 paralel çağırış limiti və üç dildə daimi ehtiyat rejimi bildirişi. Xəritə tile-ları yüklənməyəndə lokal Bakı xəritəsi açılır. Dispetçerin **Challenge laboratoriyası** bölməsində **HTTP 503 yarat**, **6 saniyə gecikdir**, **Servisi bərpa et** düymələri ilə yoxlayın. [Araşdırma, memarlıq və jüri nümayişi](docs/routing-resilience.md).
 
+## Kütləvi tədbirlər və toplaşma məntəqələrinin potensial doluluğu
+
+Konsert, futbol matçı, festival və mitinq kimi tədbirlər yer, gözlənilən iştirakçı sayı və vaxt ilə qeyd olunur. Hər tədbir üçün hazırda yerində olan insan sayı vaxta görə dəyişir: başlamazdan 90 dəqiqə əvvəl gəliş başlayır, tədbir boyu tam say saxlanır, bitəndən sonra 45 dəqiqə ərzində dağılış gedir.
+
+Model təxliyə olarsa iştirakçıların 6%-nin toplaşma məntəqəsinə gedəcəyini fərz edir. Bu insanlar 2 km daxilindəki açıq məntəqələrə piyada yol məsafəsinin kvadratına tərs mütənasib paylanır (qravitasiya modeli). Hesablama marşrutla eyni yol qrafında aparılır, ona görə bağlı yollar proqnozu dəyişir. Hər məntəqə üçün **hazırkı → potensial doluluq faizi** göstərilir: normal (<70%), nəzarət (70-90%), yönləndirmə dayanır (≥90%), tutumu aşır (>100%). 90% həddini saxlamaq üçün nə qədər əlavə yer lazım olduğu da hesablanır və ən yaxın ehtiyat məntəqə tövsiyə olunur.
+
+- **Dispetçer:** "Tədbirlər" bölməsində siyahı və proqnoz cədvəli var. **Ehtiyat məntəqəni hazırla** düyməsi tövsiyə olunan məntəqəni açır, burada yeni tədbir də əlavə etmək olar. Xəritədə tədbirin təsir dairəsi və məntəqələrə axın xətləri görünür.
+- **Vətəndaş:** 1.5 km daxilində davam edən və ya 6 saat ərzində başlayacaq tədbir barədə xəbərdarlıq kartı çıxır. Məntəqə detalında tədbirlər nəzərə alınmaqla potensial doluluq göstərilir.
+- **Demo:** bazada üç sintetik tədbir yaradılır: davam edən futbol matçı, 2 saat sonra başlayacaq konsert və sabahkı festival. Laboratoriyadakı **Demo tədbirlərini yenilə** düyməsi onları cari vaxta görə yenidən qurur.
+
+Bu proqnoz sintetik planlaşdırma modelidir. 6% payı və paylanma qaydası real müşahidə ilə kalibrasiya edilməyib.
+
 ## Vətəndaş təhlükəsizlik profili
 
 Vətəndaş panelində **Təhlükəsizlik profilim** düyməsi və ya `/#profile` açın. Yaş, hərəkət/əlçatanlıq ehtiyacları, nəqliyyat, ailə və təcili əlaqəni ayrı kartlarda daxil edib saxlayın. Şəxsi hazırlıq siyahısı bu seçimlərə uyğun dəyişir. Paylaşma standart olaraq bağlıdır; razılıq veriləndə yalnız aktiv SOS-a baxan səlahiyyətli operator və təyin edilmiş briqada yardım profilini aça bilir.

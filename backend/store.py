@@ -6,6 +6,7 @@ import uuid
 from pathlib import Path
 from .geo import distance, zone_for, shortest_path
 from .seed import seed_map
+from . import events as mass_events
 from .security import PERMISSIONS
 
 
@@ -41,6 +42,11 @@ class Store:
                 for r in self.map['roads']: self.put('road',r)
                 for name,permissions in PERMISSIONS.items(): self.put('role',{'id':name,'permissions':permissions})
                 self.put('config',{'id':'main','window_seconds':300,'radius_m':500,'sos_threshold':4,'reroute_percent':90,'critical_percent':95,'incident_radius_m':180,'provider_down':False,'websocket_down':False})
+            # Existing databases predate events: seed the demo set once, then respect deletions.
+            cfg=self.config()
+            if not cfg.get('events_seeded'):
+                for ev in mass_events.demo_events(clock()): self.put('event',ev)
+                self.put('config',{**cfg,'events_seeded':True})
 
     def objects(self, kind):
         return [json.loads(r[0]) for r in self.db.execute('SELECT data FROM objects WHERE kind=? ORDER BY id',(kind,))]
@@ -147,7 +153,10 @@ class Store:
                 shelters.append({**s,'lat':lookup[s['node']]['lat'],'lng':lookup[s['node']]['lng'],'percent':round(s['occupancy']/s['capacity']*100,2),'stale':self.clock()-s['observed_at']>300})
             incidents=[dict(r) for r in self.db.execute("SELECT i.*,COUNT(r.id) AS count,SUM(CASE WHEN r.status='active' THEN 1 ELSE 0 END) AS active_count FROM incidents i LEFT JOIN reports r ON r.incident_id=i.id GROUP BY i.id ORDER BY i.created DESC")]
             cfg=self.config()
-            result={'revision':self.revision,'server_time':self.clock(),'map':{k:v for k,v in self.map.items() if k not in ('shelters','teams','roads')},'roads':self.objects('road'),'shelters':shelters,'incidents':incidents,'config':{k:v for k,v in cfg.items() if k not in ('provider_down','websocket_down')},'dataset':'SIMULATION'}
+            events,potential=mass_events.forecast(nodes,self.objects('road'),shelters,self.objects('event'),cfg,self.clock())
+            for s in shelters:
+                if s['id'] in potential:s['event_percent']=potential[s['id']]
+            result={'revision':self.revision,'server_time':self.clock(),'map':{k:v for k,v in self.map.items() if k not in ('shelters','teams','roads')},'roads':self.objects('road'),'shelters':shelters,'incidents':incidents,'config':{k:v for k,v in cfg.items() if k not in ('provider_down','websocket_down')},'dataset':'SIMULATION','events':events}
             permissions=user.get('permissions',[]) if user else []
             if 'dashboard:read' in permissions:
                 result.update(teams=self.objects('team'),alerts=self.objects('alert'),reports=[dict(r) for r in self.db.execute('SELECT id,incident_id,type,lat,lng,zone,created,status FROM reports ORDER BY created DESC LIMIT 200')],failures={'provider':cfg['provider_down'],'websocket':cfg['websocket_down']})

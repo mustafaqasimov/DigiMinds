@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ConfigDict
 from .store import Store, uid
 from .security import Limiter, password_hash, check_password, token_hash, PERMISSIONS
+from . import events as mass_events
 from .geo import blocked_polygons, crosses_closure, distance
 from .circuit import CircuitBreaker
 from .drills import install_drills
@@ -64,6 +65,15 @@ class Switch(StrictModel):
 
 class ProviderScenario(StrictModel):
     mode:Literal['off','healthy','http_503','slow']
+
+
+class EventBody(StrictModel):
+    name:str=Field(min_length=3,max_length=60)
+    kind:Literal['concert','football','festival','rally','other']
+    node:str=Field(pattern=r'^n[0-6]_[0-8]$')
+    attendance:int=Field(ge=50,le=200000)
+    start:float
+    end:float
 
 
 class Assignment(StrictModel):
@@ -362,6 +372,38 @@ def create_app(db_path=None,demo=None):
             store.put('shelter',s);store.audit(actor,'occupancy.updated',id);store.evaluate()
         return s
 
+    @application.post('/api/events')
+    def create_event(body:EventBody,request:Request):
+        u=require(request,'shelter:write')
+        if not 0<body.end-body.start<=24*3600:raise HTTPException(422,'invalid_event_window')
+        if body.end<time.time()-3600:raise HTTPException(422,'event_in_past')
+        with store.lock,store.db:
+            ev={'id':mass_events.new_id(),**body.model_dump(),'created_by':u['id']}
+            store.put('event',ev);store.audit(u['id'],'event.created',ev['id'])
+        return ev
+
+    @application.delete('/api/events/{id}')
+    def delete_event(id:str,request:Request):
+        u=require(request,'shelter:write')
+        with store.lock,store.db:
+            if not store.get('event',id):raise HTTPException(404,'not_found')
+            store.db.execute("DELETE FROM objects WHERE kind='event' AND id=?",(id,));store.audit(u['id'],'event.deleted',id)
+        return {'ok':True}
+
+    @application.post('/api/events/{id}/prepare')
+    def prepare_event(id:str,request:Request):
+        """Open the reserve shelter the forecast recommends for this event."""
+        u=require(request,'incident:act')
+        with store.lock,store.db:
+            item=next((e for e in store.snapshot()['events'] if e['id']==id),None)
+            if not item:raise HTTPException(404,'not_found')
+            if not item['reserve']:raise HTTPException(409,'no_reserve_needed')
+            s=store.get('shelter',item['reserve']['id'])
+            s.update(status='open',observed_at=time.time());store.put('shelter',s)
+            ev=store.get('event',id);ev.setdefault('prepared',[]).append(s['id']);store.put('event',ev)
+            store.audit(u['id'],'event.prepare',s['id'])
+        return {'event':id,'opened':s['id']}
+
     @application.patch('/api/roads/{id}')
     def road(id:str,body:Switch,request:Request):
         u=require(request,'road:write')
@@ -423,6 +465,16 @@ def create_app(db_path=None,demo=None):
     def audit(request:Request):
         require(request,'audit:read')
         with store.lock:return [dict(r) for r in store.db.execute('SELECT * FROM audit ORDER BY id DESC LIMIT 100')]
+
+    @application.post('/api/demo/events')
+    def demo_events(request:Request):
+        u=require(request,'demo:write')
+        if not demo:raise HTTPException(404,'not_found')
+        with store.lock,store.db:
+            store.db.execute("DELETE FROM objects WHERE kind='event'")
+            for ev in mass_events.demo_events(time.time()):store.put('event',ev)
+            store.audit(u['id'],'demo.events','reset')
+        return {'ok':True}
 
     @application.post('/api/demo/{scenario}')
     def scenario(scenario:Literal['sos_wave','provider','websocket'],body:Switch,request:Request):

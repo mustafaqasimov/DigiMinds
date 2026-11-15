@@ -56,3 +56,24 @@ test('fallback remains visible with the drawer closed in all three languages',()
   assert.deepEqual(Object.keys(resilienceMessages[locale]).sort(),Object.keys(resilienceMessages.en).sort());
  }
 });
+test('mass gatherings: dispatcher forecast, reserve action and citizen nearby warning',async()=>{
+ const {eventMessages}=await import('../frontend/events-i18n.js');
+ const words={...translations.en,...uiTranslations.en,...eventMessages.en};
+ const ev={id:'ev1',name:'Cup <final>',kind:'football',node:'n6_4',lat:40.38,lng:49.842,attendance:12000,start:0,end:7200,phase:'live',presence:1,on_site:12000,seekers:720,worst:97,deficit:94,unplaced:0,reserve:{id:'s5',name:'Reserve',capacity:500,meters:600},
+  shelters:[{id:'s2',name:'North Stadium',meters:296,incoming:561,current_percent:41,potential_percent:97.1,level:'reroute'}]};
+ const d=context(['dashboard:read','incident:act','shelter:write'],{view:'dispatcher',t:k=>words[k]||k});
+ d.state.events=[ev];d.ui.panel='events';
+ let html=renderLayout(d);
+ assert.ok(html.includes('data-select="event" data-id="ev1"'));
+ assert.ok(html.includes('id="event-form"'));
+ assert.ok(html.includes('Cup &lt;final&gt;') && !html.includes('Cup <final>'));
+ d.ui.selected={kind:'event',id:'ev1'};html=renderLayout(d);
+ assert.ok(html.includes('data-event-prepare="ev1"'));
+ assert.ok(html.includes('97%') && html.includes('Rerouting stops'));
+ const c=context([],{t:k=>words[k]||k,origin:{lat:40.379,lng:49.842}});c.state.events=[ev];
+ html=renderLayout(c);
+ assert.ok(html.includes('Mass gathering nearby'));
+ assert.ok(!html.includes('data-event-prepare'));
+ c.origin={lat:40.365,lng:49.828};
+ assert.ok(!renderLayout(c).includes('Mass gathering nearby'));
+});
