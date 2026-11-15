@@ -2,7 +2,11 @@ import {translations} from './i18n.js';
 import {uiTranslations} from './ui-i18n.js';
 import {renderLayout} from './ui.js';
 import {mountMap,mapCommand} from './map.js';
+import {createProfileUI} from './profile.js';
+import {createEarthquakeDemo} from './earthquake.js';
+import {quakeMessages} from './earthquake-i18n.js';
 for (const locale of Object.keys(uiTranslations)) Object.assign(translations[locale], uiTranslations[locale]);
+for (const locale of Object.keys(quakeMessages)) translations[locale].earthquakeDemo=quakeMessages[locale].launch;
 import {localRoutes,outbox,cache} from './offline.js';
 const $=s=>document.querySelector(s),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let lang=localStorage.getItem('dm_lang')||'az';if(!translations[lang])lang='az';
@@ -11,6 +15,7 @@ const paths={shield:'M12 3 20 6v6c0 5-8 9-8 9S4 17 4 12V6Z M9 12l2 2 4-5',map:'m
 Object.assign(paths,{menu:'M4 6h16 M4 12h16 M4 18h16','chevron-left':'m15 5-7 7 7 7',cloud:'M6 18a5 5 0 1 1 0-10 7 7 0 0 1 13-1 5 5 0 0 1-1 11Z M9 13l2 2 5-5',account:'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M15 9a3 3 0 1 1-6 0 3 3 0 0 1 6 0 M6 19a6 6 0 0 1 12 0',navigation:'m3 10 18-7-7 18-3-8Z',close:'m6 6 12 12M6 18 18 6',search:'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',chevron:'m9 5 7 7-7 7','chevron-down':'m6 9 6 6 6-6',layers:'m3 7 9-5 9 5-9 5Z M3 12l9 5 9-5 M3 17l9 5 9-5',warning:'m12 3 10 18H2Z M12 9v5 M12 17h.01',focus:'M8 3H3v5 M16 3h5v5 M3 16v5h5 M21 16v5h-5 M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0',plus:'M12 5v14 M5 12h14',minus:'M5 12h14',eye:'M2 12c5-10 15-10 20 0-5 10-15 10-20 0Z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0',info:'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M12 11v6 M12 7h.01',flask:'M9 3h6 M10 3v7L4 20h16l-6-10V3 M7 15h10',walk:'M14 4a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0 M8 13l2-5h3l3 5h3 M12 8l-2 8-4 5 M10 16h4l2 5',refresh:'M20 7v5h-5 M4 17v-5h5 M5 8a8 8 0 0 1 14-2l1 6 M4 12l1 6a8 8 0 0 0 14-2'});
 const icon=name=>`<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[name]||paths.shield}"/></svg>`;
 const ui={drawer:null,legend:false,panel:null,search:'',filter:'all',selected:null,dialog:null,layerMenu:false,layers:{shelters:true,incidents:true,teams:true,zones:true},zoom:1,pan:{x:0,y:0},chooseLocation:false,editRoads:false,sending:false,offlineMap:location.hash==='#offline'};
+let profileOpen=location.hash==='#profile';
 let healthReady=false;
 let dialogOpener=null,lastDialog=null,ignoreMapClickUntil=0;
 let user=null,state=null,health={demo:false},view='citizen',connection='offline',ws=null,reconnectTimer=null,retries=0,route=null,routeSequence=0,mode=localStorage.getItem('dm_mode')||'local',origin={lat:40.37,lng:49.8385},pending=[],adminData=null,syncing=false,lastMapSignature='',autoRouteTimer=null;
@@ -19,6 +24,8 @@ const fmtTime=v=>new Date(v*1000).toLocaleTimeString(lang==='az'?'az-AZ':lang===
 let toastTimer;function toast(message){$('#toast').textContent=message;$('#toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),4500);}
 async function api(path,options={}){let r;try{r=await fetch('/api'+path,{...options,headers:{'Content-Type':'application/json','X-Requested-With':'DigiMinds',...(options.headers||{})},signal:options.signal||AbortSignal.timeout(7000)});}catch(e){throw Object.assign(Error('network'),{network:true});}let data;try{data=await r.json();}catch{data={detail:r.statusText};}if(!r.ok)throw Object.assign(Error(typeof data.detail==='string'?data.detail:'invalid_input'),{status:r.status});return data;}
 function errorToast(e){toast(e.message==='outside_demo_area'?t('outOfArea'):e.status===429?t('rateLimit'):['no_available_team','no_reserve_shelter'].includes(e.message)?t('unavailable'):t('error')+' · '+e.message);}
+const profileUI=createProfileUI({api,language:()=>lang,toast,online:()=>connection!=='offline',demo:()=>health.demo});
+const quake=createEarthquakeDemo({api,beforeOpen:()=>{ui.dialog=null;render();},onSOS:()=>{ui.dialog='sos';render();}});
 function setConnection(next){if(connection!==next){connection=next;render();}}
 function consume(s){const changed=!state||state.revision!==s.revision||s.shelters.some((v,i)=>v.stale!==state.shelters[i]?.stale);const roleChanged=s.viewer&&user?.role!==s.viewer.role;state=s;if(s.viewer){user=s.viewer;if(roleChanged)view=operator()?'dispatcher':can('assignment:read')?'responder':'citizen';if(view!=='citizen'&&!operator()&&!can('assignment:read'))view='citizen';}const pub={map:s.map,roads:s.roads,shelters:s.shelters,config:s.config,server_time:s.server_time,revision:s.revision,dataset:s.dataset,incidents:[],stats:s.stats};cache.put('map',pub).catch(()=>{});const signature=JSON.stringify([s.roads.filter(r=>r.blocked).map(r=>r.id),s.shelters.map(x=>[x.id,x.status,x.occupancy,x.capacity])]);if(lastMapSignature&&lastMapSignature!==signature&&route){clearTimeout(autoRouteTimer);autoRouteTimer=setTimeout(()=>findRoute(true),180);}lastMapSignature=signature;if(changed)render();}
 async function refresh(){try{if(!healthReady){health=await api('/health');healthReady=true;}consume(await api('/state'));if(connection!=='live')setConnection('polling');if(user&&!ws&&!reconnectTimer)connect();await flush();}catch(e){if(e.network)setConnection('offline');else if(e.status===401){closeSocket();setConnection('offline');}}}
@@ -34,8 +41,10 @@ async function bootstrap(){
  applyEntry();render();setInterval(()=>{if(connection!=='live')refresh();},4000);
 }
 // Keep drafts, keyboard focus, and panel scroll stable during live snapshots.
-function render(){
+function render(forceProfile=false){
+ quake.update({user,enabled:health.demo,lang});
  if(!state)return;
+ if(profileOpen&&user?.role==='citizen'){if(!$('#profile-root')){$('#app').innerHTML='<main id="profile-root"></main>';profileUI.mount(user.id);}else if(forceProfile)profileUI.paint();return;}
  if(ui.dialog==='lab'&&!can('demo:write')||ui.dialog==='admin'&&!can('role:write'))ui.dialog=null;
  document.documentElement.lang=lang;
  if(view==='responder'&&!ui.panel)ui.panel='teams';
@@ -63,17 +72,19 @@ function render(){
  if(focus){focus.focus({preventScroll:true});if(selectionStart!=null&&focus.setSelectionRange)try{focus.setSelectionRange(selectionStart,selectionEnd);}catch{}}
  lastDialog=ui.dialog;
 }
-function resetWorkspace(){ui.drawer=null;ui.panel=null;ui.selected=null;ui.search='';ui.editRoads=false;ui.chooseLocation=false;ui.dialog=null;}
+function resetWorkspace(){profileOpen=false;profileUI.reset();ui.drawer=null;ui.panel=null;ui.selected=null;ui.search='';ui.editRoads=false;ui.chooseLocation=false;ui.dialog=null;}
 async function findRoute(automatic=false){const seq=++routeSequence;try{let result;if(connection==='offline'){result=localRoutes(state,origin);}else{result=(await api(`/routes?lat=${origin.lat}&lng=${origin.lng}&mode=${mode}`)).routes;}if(seq!==routeSequence)return;const previous=route;route=result[0]||null;render();if(automatic&&JSON.stringify(previous?.geometry)!==JSON.stringify(route?.geometry))toast(t('routeUpdated'));}catch(e){if(seq!==routeSequence)return;if(e.network){setConnection('offline');route=localRoutes(state,origin)[0]||null;render();}else{route=null;render();errorToast(e);}}}
 async function sendSOS(type,incident_id){if(ui.sending)return;if(!can('sos:create')&&connection!=='offline'){toast(t('citizen')+' · '+t('login'));return;}ui.sending=true;render();const data={event_key:crypto.randomUUID(),type,...origin,client_time:Date.now()/1000,...(incident_id?{incident_id}:{})};try{if(connection==='offline')throw Object.assign(Error('network'),{network:true});await api('/sos',{method:'POST',body:JSON.stringify(data)});ui.dialog=null;toast(t('sent'));await refresh();}catch(e){if(e.network){if(!user){toast(t('login'));return;}if(pending.length>=50){toast(t('rateLimit'));return;}await outbox.put({...data,owner:user.id});pending=await outbox.all();ui.dialog=null;setConnection('offline');render();toast(t('queued'));}else errorToast(e);}finally{ui.sending=false;render();}}
 async function flush(){if(syncing||!pending.length||connection==='offline'||!can('sos:create'))return;syncing=true;try{for(const item of pending){if(item.owner!==user.id)continue;const {owner,...data}=item;await api('/sos',{method:'POST',body:JSON.stringify(data)});await outbox.remove(item.event_key);}pending=await outbox.all();render();}catch(e){if(!e.network&&e.status!==429)errorToast(e);}finally{syncing=false;}}
 async function signIn(username,password){try{await api('/auth/login',{method:'POST',body:JSON.stringify({username,password})});closeSocket();resetWorkspace();route=null;state=null;await identity();consume(await api('/state'));connect();if(can('role:write'))await loadAdmin();render();}catch(e){errorToast(e);}}
 async function loadAdmin(){const [roles,users,audit]=await Promise.all([api('/roles'),api('/users'),api('/audit')]);adminData={roles,users,audit};render();}
-document.addEventListener('change',async e=>{if(e.target.dataset.layer){ui.layers[e.target.dataset.layer]=e.target.checked;render();}if(e.target.id==='language'){lang=e.target.value;localStorage.setItem('dm_lang',lang);render();}if(e.target.id==='route-mode'){mode=e.target.value;localStorage.setItem('dm_mode',mode);await findRoute();}});
+document.addEventListener('change',async e=>{if(e.target.dataset.layer){ui.layers[e.target.dataset.layer]=e.target.checked;render();}if(e.target.id==='language'){lang=e.target.value;localStorage.setItem('dm_lang',lang);render(true);}if(e.target.id==='route-mode'){mode=e.target.value;localStorage.setItem('dm_mode',mode);await findRoute();}});
 document.addEventListener('submit',async e=>{e.preventDefault();const form=e.target,data=new FormData(form);try{if(form.id==='occupancy-form'){await api('/shelters/'+form.dataset.id+'/occupancy',{method:'PATCH',body:JSON.stringify({occupancy:Number(data.get('occupancy')),source:'manual'})});toast(t('confirmed'));await refresh();}if(form.id==='login-form')await signIn(data.get('username'),data.get('password'));if(form.id==='role-form'){await api('/roles',{method:'POST',body:JSON.stringify({name:data.get('name'),permissions:[...(data.has('dashboard')?['dashboard:read']:[]),...(data.has('act')?['incident:act']:[])]})});await loadAdmin();toast(t('confirmed'));}if(form.id==='assign-form'){await api(`/users/${data.get('user')}/role`,{method:'PATCH',body:JSON.stringify({role:data.get('role')})});await loadAdmin();toast(t('confirmed'));}}catch(error){errorToast(error);}});
 document.addEventListener('click',async e=>{
  const b=e.target.closest('button,[data-node],[data-select]');if(!b)return;if(performance.now()<ignoreMapClickUntil&&b.closest('#city-map'))return;
  try{
+  if(b.dataset.profileAction==='back'){profileOpen=false;history.replaceState(null,'',location.pathname+location.search);render();return;}
+  if(b.dataset.assistance){await profileUI.assistance(b.dataset.assistance);return;}
   if(b.dataset.panel){ui.drawer=true;ui.selected=null;ui.dialog=null;ui.panel=b.dataset.panel;ui.search='';ui.filter='all';render();return;}
   if(b.dataset.filter){ui.filter=b.dataset.filter;render();return;}
   if(b.dataset.select){ui.drawer=true;ui.selected={kind:b.dataset.select,id:b.dataset.id};ui.layerMenu=false;render();return;}
@@ -88,6 +99,8 @@ document.addEventListener('click',async e=>{
   if(b.dataset.team){await api('/teams/'+b.dataset.team,{method:'PATCH',body:JSON.stringify({status:b.dataset.status})});await refresh();return;}
   if(b.dataset.scenario){const k=b.dataset.scenario;await api('/demo/'+k,{method:'POST',body:JSON.stringify({enabled:k==='sos_wave'?true:!state.failures?.[k]})});await refresh();return;}
   switch(b.dataset.action){
+   case'profile':if(user?.role==='citizen'){profileOpen=true;history.pushState(null,'','#profile');render();}break;
+   case'earthquake':quake.open();break;
    case'login':ui.dialog='login';render();break;
    case'close-modal':ui.dialog=null;render();break;
    case'logout':resetWorkspace();await api('/auth/logout',{method:'POST'});closeSocket();await api('/auth/guest',{method:'POST'});await identity();await refresh();connect();await findRoute();break;
@@ -122,6 +135,7 @@ bootstrap().catch(errorToast);
 
 document.addEventListener('input',event=>{if(['workspace-search','panel-search'].includes(event.target.id)){ui.search=event.target.value;ui.drawer=true;ui.selected=null;render();}});
 document.addEventListener('keydown',event=>{
+ if(document.querySelector('#earthquake-root dialog[open],#profile-dialog[open]'))return;
  const dialog=document.querySelector('[role="dialog"]');
  if(event.key==='Escape'){ui.dialog=null;ui.selected=null;ui.layerMenu=false;ui.legend=false;ui.chooseLocation=false;ui.editRoads=false;render();return;}
  if(dialog&&event.key==='Tab'){
@@ -134,5 +148,5 @@ document.addEventListener('keydown',event=>{
 });
 document.addEventListener('map-select',event=>{ui.drawer=true;ui.selected=event.detail;render();});
 
-function applyEntry(){const entry=location.hash.slice(1);if(entry==='sos')ui.dialog='sos';if(['shelters','safe','route'].includes(entry)){ui.drawer=true;ui.panel='shelters';}if(entry==='dispatcher'){if(operator()){view='dispatcher';ui.drawer=true;}else ui.dialog='login';}if(entry==='offline'){ui.offlineMap=true;mode='local';}}
+function applyEntry(){const entry=location.hash.slice(1);profileOpen=entry==='profile';if(entry==='sos')ui.dialog='sos';if(['shelters','safe','route'].includes(entry)){ui.drawer=true;ui.panel='shelters';}if(entry==='dispatcher'){if(operator()){view='dispatcher';ui.drawer=true;}else ui.dialog='login';}if(entry==='offline'){ui.offlineMap=true;mode='local';}}
 window.addEventListener('hashchange',()=>{applyEntry();render();});

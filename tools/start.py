@@ -6,6 +6,7 @@ Only the base application dependencies are installed; vision stays optional.
 import argparse
 import hashlib
 import json
+import ipaddress
 import os
 from pathlib import Path
 import socket
@@ -30,11 +31,11 @@ def healthy(url):
         return False
 
 
-def choose_port(preferred):
+def choose_port(preferred, host='127.0.0.1'):
     for port in range(preferred, min(preferred + 11, 65536)):
         with socket.socket() as probe:
             try:
-                probe.bind(('127.0.0.1', port))
+                probe.bind((host, port))
                 return port
             except OSError:
                 continue
@@ -70,6 +71,8 @@ def main():
     parser.add_argument('--port', type=int, default=3000)
     parser.add_argument('--no-browser', action='store_true')
     parser.add_argument('--smoke-test', action='store_true', help='Verify HTTP startup, then stop; no browser')
+    parser.add_argument('--lan', action='store_true', help='Allow devices on your local network to connect')
+    parser.add_argument('--jury', action='store_true', help='Open the jury presentation screen')
     args = parser.parse_args()
     if sys.version_info < (3, 12):
         raise RuntimeError('Python 3.12 ve ya daha yeni versiya lazimdir.')
@@ -77,18 +80,20 @@ def main():
         parser.error('Port 1024..65535 araliginda olmalidir')
 
     default_url = f'http://127.0.0.1:{args.port}'
-    if not args.smoke_test and healthy(default_url):
+    entry='/presentation.html' if args.jury else '/'
+    if not args.smoke_test and not args.lan and healthy(default_url):
         print(f'DigiMinds artiq isleyir: {default_url}', flush=True)
         if not args.no_browser:
-            webbrowser.open(default_url)
+            webbrowser.open(default_url+entry)
         return 0
 
     executable = prepare_python()
-    port = choose_port(args.port)
+    host='0.0.0.0' if args.lan else '127.0.0.1'
+    port = choose_port(args.port,host)
     url = f'http://127.0.0.1:{port}'
     print(f'[3/3] Server basladilir: {url}', flush=True)
     process = subprocess.Popen([str(executable), str(ROOT / 'tools/dev.py'),
-                                '--host', '127.0.0.1', '--port', str(port)], cwd=ROOT)
+                                '--host', host, '--port', str(port)], cwd=ROOT)
     try:
         deadline = time.monotonic() + 30
         while not healthy(url):
@@ -101,11 +106,23 @@ def main():
             if response.status != 200 or b'DigiMinds' not in response.read():
                 raise RuntimeError('Panelin sehifesi acilmadi.')
         print(f'HAZIR: {url}', flush=True)
+        if args.lan:
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+                    probe.connect(('192.0.2.1',9))
+                    addresses=[probe.getsockname()[0]]
+                for address in addresses:
+                    ip=ipaddress.ip_address(address)
+                    if ip.is_private and not ip.is_loopback and not ip.is_link_local:
+                        print(f'TELEFON PULTU: http://{address}:{port}/remote.html?room=DIGI26', flush=True)
+            except OSError:
+                print('Wi-Fi IPv4 unvanini ipconfig ile tapin.', flush=True)
+            print('Telefon ve noutbuk eyni Wi-Fi/hotspot-da olmalidir.', flush=True)
         if args.smoke_test:
             print('HTTP readiness and frontend document: PASS', flush=True)
             return 0
         if not args.no_browser:
-            webbrowser.open(url)
+            webbrowser.open(url+entry)
         print('Bu pencereni aciq saxlayin. Dayandirmaq: Ctrl+C.', flush=True)
         return process.wait()
     except KeyboardInterrupt:

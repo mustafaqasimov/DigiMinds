@@ -14,6 +14,8 @@ from pydantic import BaseModel, Field, ConfigDict
 from .store import Store, uid
 from .security import Limiter, password_hash, check_password, token_hash, PERMISSIONS
 from .geo import blocked_polygons, crosses_closure
+from .drills import install_drills
+from .profiles import ProfileUpdate, profile_record, shared_profiles
 
 ROOT=Path(__file__).resolve().parent.parent
 
@@ -25,6 +27,7 @@ class StrictModel(BaseModel):
 class Login(StrictModel):
     username:str=Field(min_length=1,max_length=80)
     password:str=Field(min_length=1,max_length=200)
+    cookie_session:bool=True
 
 
 class SOS(StrictModel):
@@ -116,6 +119,7 @@ def create_app(db_path=None,demo=None):
         result.headers['X-Frame-Options']='DENY'
         result.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org; connect-src 'self' ws: wss:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
         if request.url.path.startswith('/api'):result.headers['Cache-Control']='no-store'
+        elif request.url.path=='/' or request.url.path.endswith(('.html','.js','.css')):result.headers['Cache-Control']='no-cache'
         return result
 
     def throttle(key,limit,window=60):
@@ -140,13 +144,13 @@ def create_app(db_path=None,demo=None):
         throttle('api:'+u['id'],300)
         return u
 
-    def issue(user,response):
+    def issue(user,response,cookie_session=True):
         token=secrets.token_urlsafe(32)
         with store.lock,store.db:
             store.db.execute('DELETE FROM sessions WHERE expires<?',(time.time(),))
             store.db.execute('INSERT INTO sessions VALUES(?,?,?)',(token_hash(token),user['id'],time.time()+8*3600))
-        response.set_cookie('dm_session',token,httponly=True,samesite='strict',secure=os.getenv('SECURE_COOKIES')=='1',max_age=28800)
-        if user['role']=='citizen':
+        if cookie_session:response.set_cookie('dm_session',token,httponly=True,samesite='strict',secure=os.getenv('SECURE_COOKIES')=='1',max_age=28800)
+        if cookie_session and user['role']=='citizen':
             response.set_cookie('dm_citizen',token,httponly=True,samesite='strict',secure=os.getenv('SECURE_COOKIES')=='1',max_age=28800)
         # Bearer token lets CLI/load tests use the same authentication scheme.
         return {'token':token,'user':{k:v for k,v in user.items() if k!='password'},'demo':demo}
@@ -171,7 +175,7 @@ def create_app(db_path=None,demo=None):
         with store.lock:
             r=store.db.execute('SELECT * FROM users WHERE username=?',(body.username,)).fetchone()
         if not r or not r['password'] or not check_password(body.password,r['password']):raise HTTPException(401,'invalid_credentials')
-        return issue(dict(r),response)
+        return issue(dict(r),response,body.cookie_session)
 
     @application.get('/api/auth/me')
     def me(request:Request):return require(request)
@@ -186,6 +190,55 @@ def create_app(db_path=None,demo=None):
 
     @application.get('/api/state')
     def state(request:Request):return store.snapshot(require(request))
+
+    def citizen(request):
+        u = require(request)
+        if u['role'] != 'citizen':raise HTTPException(403, 'citizen_profile_only')
+        return u
+
+    @application.get('/api/me/profile')
+    def get_profile(request:Request):
+        u = citizen(request)
+        with store.lock:return profile_record(store, u['id'])
+
+    @application.put('/api/me/profile')
+    def update_profile(body:ProfileUpdate, request:Request):
+        u = citizen(request)
+        with store.lock, store.db:
+            current = profile_record(store, u['id'])
+            if body.version != current['version']:raise HTTPException(409, 'profile_changed')
+            profile = body.profile.model_dump()
+            store.put('profile', {'id': u['id'], 'profile': profile, 'version': current['version']+1, 'updated_at': store.clock()})
+            store.audit(u['id'], 'profile.saved', u['id'])
+            if profile['share_on_sos'] != current['profile']['share_on_sos']:
+                store.audit(u['id'], 'profile.sharing_enabled' if profile['share_on_sos'] else 'profile.sharing_disabled', u['id'])
+            return profile_record(store, u['id'])
+
+    @application.delete('/api/me/profile')
+    def delete_profile(request:Request, version:int):
+        u = citizen(request)
+        with store.lock, store.db:
+            current = profile_record(store, u['id'])
+            if version != current['version']:raise HTTPException(409, 'profile_changed')
+            # Keep only a version tombstone, so a stale tab cannot recreate deleted data.
+            store.put('profile', {'id': u['id'], 'profile': None, 'version': current['version']+1, 'updated_at': None})
+            store.audit(u['id'], 'profile.deleted', u['id'])
+            return profile_record(store, u['id'])
+
+    @application.get('/api/incidents/{id}/assistance')
+    def incident_assistance(id:str, request:Request):
+        u = require(request)
+        with store.lock, store.db:
+            assigned = any(t['id']==u.get('team_id') and t.get('incident_id')==id and t['status']!='available' for t in store.objects('team'))
+            if 'incident:act' not in u['permissions'] and not ('assignment:read' in u['permissions'] and assigned):
+                raise HTTPException(403, 'permission_denied')
+            if not store.db.execute('SELECT id FROM incidents WHERE id=?', (id,)).fetchone():raise HTTPException(404, 'not_found')
+            people = shared_profiles(store, id)
+            # Audit metadata only: never copy personal fields into logs or WebSocket state.
+            for person in people:
+                owner = store.db.execute('SELECT user_id FROM reports WHERE id=?', (person['report_id'],)).fetchone()[0]
+                store.audit(u['id'], 'profile.accessed', owner)
+            return {'incident_id': id, 'people': people}
 
     @application.get('/api/map')
     def map_data():return store.snapshot()
@@ -358,6 +411,7 @@ def create_app(db_path=None,demo=None):
     @application.get('/')
     def index():return FileResponse(ROOT/'frontend/index.html')
 
+    install_drills(application,store,require,user_from,origin_ok,throttle,demo)
     application.mount('/',StaticFiles(directory=ROOT/'frontend',html=True),name='frontend')
     return application
 
