@@ -1,42 +1,39 @@
-// All geometry is bundled and synthetic: the map works without a tile provider.
-export function projection(lng, lat) {
-  return {x: 80 + (lng - 49.828) / .0035 * 102, y: 660 - (lat - 40.365) / .0025 * 85};
+import {addBase} from './map-base.js';
+let map,overlays,base,context,lastSelection,container;
+export function renderMap({t}){return `<div id="city-map" class="real-map" aria-label="${t('mapTitle')}" tabindex="0"></div>`;}
+export function mountMap(c,{onLocation}){
+ const L=window.L;if(!L)return;
+ context=c;
+ const element=document.getElementById('city-map');if(!element)return;
+ if(!map||container!==element){
+  if(map){base?.dispose();map.remove();}
+  container=element;
+  map=L.map(element,{zoomControl:false,attributionControl:true,minZoom:11,maxZoom:19,zoomSnap:.5}).setView([40.374,49.847],15);
+  base=addBase(map,{offline:!!c.ui.offlineMap,onStatus:status=>{element.dataset.mapStatus=status;const badge=document.getElementById('base-map-status');if(badge)badge.textContent=status==='online'?'OpenStreetMap':status==='unavailable'?'Xəritə məlumatı əlçatan deyil':'Oflayn · OpenStreetMap';}});
+  overlays=L.layerGroup().addTo(map);
+  L.control.scale({imperial:false,position:'bottomleft'}).addTo(map);
+  map.on('click',event=>{if(context.ui.chooseLocation)onLocation(event.latlng);});
+ }
+ base.setOffline(!!c.ui.offlineMap);map.invalidateSize({pan:false});overlays.clearLayers();
+ const {state,ui,route,origin,view,esc,icon,t}=c,isCitizen=view==='citizen',lookup=Object.fromEntries(state.map.nodes.map(n=>[n.id,n]));
+ const pos=n=>[n.lat,n.lng];
+ function select(kind,id){document.dispatchEvent(new CustomEvent('map-select',{detail:{kind,id}}));}
+ function pin(kind,id,point,color,glyph,label,sub){
+  if(!point)return;
+  const html=`<button class="geo-pin ${ui.selected?.id===id?'selected':''}" style="--pin-color:${color}" data-select="${kind}" data-id="${esc(id)}" aria-label="${esc(label)}${sub?' · '+esc(sub):''}"><span>${icon(glyph)}</span>${sub?`<b>${esc(sub)}</b>`:''}</button>`;
+  L.marker(pos(point),{icon:L.divIcon({className:'geo-marker',html,iconSize:[48,63],iconAnchor:[24,24]}),keyboard:false}).addTo(overlays);
+ }
+ if(ui.layers.zones){
+  const b=state.map.bounds||[49.828,40.365,49.856,40.38],mid=(b[0]+b[2])/2;
+  L.rectangle([[b[1],b[0]],[b[3],mid]],{color:'#c58240',weight:1,dashArray:'5 6',fillColor:'#f8c86e',fillOpacity:.07,interactive:false}).addTo(overlays);
+  L.rectangle([[b[1],mid],[b[3],b[2]]],{color:'#437f9a',weight:1,dashArray:'5 6',fillColor:'#82c4dc',fillOpacity:.05,interactive:false}).addTo(overlays);
+ }
+ for(const r of state.roads){if(!r.blocked&&!ui.editRoads)continue;const a=lookup[r.a],b=lookup[r.b];if(!a||!b)continue;L.polyline([pos(a),pos(b)],{color:r.blocked?'#e04a39':'#f48427',weight:r.blocked?6:4,dashArray:r.blocked?'7 7':null,opacity:r.blocked?1:.5}).on('click',()=>select('road',r.id)).addTo(overlays);}
+ if(isCitizen&&route?.geometry?.length)L.polyline(route.geometry.map(([lng,lat])=>[lat,lng]),{color:'#3b6ed8',weight:5,opacity:.9,dashArray:state.map.dataset?.includes('synthetic')?'8 7':null,interactive:false}).addTo(overlays);
+ if(ui.layers.shelters)for(const s of state.shelters)pin('shelter',s.id,lookup[s.node],s.status!=='open'?'#919b91':s.percent>95?'#ce4e36':s.percent>=90?'#c18c18':'#2d936f','home',s.name,s.status==='standby'?t('standby'):Math.round(s.percent)+'%');
+ if(ui.layers.teams&&!isCitizen)for(const team of state.teams||[])pin('team',team.id,lookup[team.node],team.status==='available'?'#557795':'#3e68c0','team',team.name,'');
+ if(ui.layers.incidents)for(const i of state.incidents||[]){if(!i.lat||i.status==='resolved'||!(i.active_count>0||ui.selected?.id===i.id))continue;L.circle([i.lat,i.lng],{radius:180,color:'#e77135',weight:1,fillColor:'#f79759',fillOpacity:.1,dashArray:'4 5',interactive:false}).addTo(overlays);pin('incident',i.id,i,'#e36629',i.type,t(i.type),i.count+' SOS');}
+ if(isCitizen){L.circleMarker([origin.lat,origin.lng],{radius:9,color:'white',weight:4,fillColor:'#316cdb',fillOpacity:1}).bindTooltip(t('currentLocation'),{direction:'bottom'}).addTo(overlays);}
+ if(ui.selected&&lastSelection!==ui.selected.id){const item=ui.selected.kind==='shelter'?state.shelters.find(s=>s.id===ui.selected.id):ui.selected.kind==='team'?(state.teams||[]).find(s=>s.id===ui.selected.id):ui.selected.kind==='incident'?(state.incidents||[]).find(s=>s.id===ui.selected.id):null;const point=item?.node?lookup[item.node]:item;if(point?.lat)map.panTo(pos(point));lastSelection=ui.selected.id;}
 }
-export function mapView(ui) {
-  const w = 1000 / ui.zoom, h = 760 / ui.zoom;
-  return `${500 + ui.pan.x - w / 2} ${380 + ui.pan.y - h / 2} ${w} ${h}`;
-}
-export function renderMap({state, ui, route, origin, isCitizen, t, esc, icon}) {
-  const nodes = state.map.nodes, lookup = Object.fromEntries(nodes.map(n => [n.id, n]));
-  let blocks = '';
-  for (let r = 0; r < 6; r++) for (let c = 0; c < 8; c++) {
-    const x = 91 + c * 102, y = 164 + r * 85;
-    if ((c === 4 && r === 2) || (c === 6 && r === 4) || (c === 4 && r === 0)) continue;
-    blocks += `<g fill="${(r + c) % 3 ? '#e5e1d8' : '#dddccf'}" stroke="#d0cbbd" stroke-width=".6"><rect x="${x}" y="${y}" width="35" height="24" rx="2"/><rect x="${x+47}" y="${y+3}" width="31" height="43" rx="2"/><rect x="${x+3}" y="${y+34}" width="32" height="27" rx="2"/><rect x="${x+49}" y="${y+52}" width="26" height="12" rx="2"/></g>`;
-  }
-  const park = (x, y, w, h) => `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="#b8d4a4" stroke="#a4c38e"/><path d="M${x+8} ${y+h-8}L${x+w-8} ${y+8}M${x+8} ${y+8}L${x+w-8} ${y+h-8}" stroke="#e5eddd" stroke-width="4"/>${[12,32,52].map((v,i)=>`<circle cx="${x+v}" cy="${y+12+i%2*30}" r="7" fill="#96bd7d" opacity=".7"/>`).join('')}</g>`;
-  const roads = state.roads.map(r => {
-    const a=lookup[r.a], b=lookup[r.b], d=`M${a.x} ${a.y}L${b.x} ${b.y}`;
-    const selected=ui.selected?.kind==='road' && ui.selected.id===r.id;
-    return `<path d="${d}" stroke="#c5c1b5" stroke-width="13"/><path d="${d}" stroke="#fffefb" stroke-width="10"/>${r.blocked?`<path d="${d}" stroke="#df5847" stroke-width="7" stroke-dasharray="7 5"/>`:''}${selected?`<path d="${d}" stroke="#eb8741" stroke-width="18" opacity=".3"/>`:''}${ui.editRoads?`<rect class="road-hit" data-select="road" data-id="${r.id}" x="${Math.min(a.x,b.x)-9}" y="${Math.min(a.y,b.y)-9}" width="${Math.abs(a.x-b.x)+18}" height="${Math.abs(a.y-b.y)+18}" rx="5" role="button" tabindex="0" aria-label="${esc(r.name)} · ${t(r.blocked?'closed':'open')}"/>`:''}`;
-  }).join('');
-  const routePath = isCitizen && route?.geometry?.map((p,i)=> {const q=projection(...p);return `${i?'L':'M'}${q.x} ${q.y}`;}).join(' ');
-  function marker(kind, id, p, color, glyph, label, sub, selected) {
-    return `<g class="map-marker ${selected?'is-selected':''}" data-select="${kind}" data-id="${esc(id)}" tabindex="0" role="button" aria-label="${esc(label)}${sub?' · '+esc(sub):''}"><circle cx="${p.x}" cy="${p.y}" r="29" fill="${color}" opacity="${selected?'.19':'.08'}"/>${selected?`<circle cx="${p.x}" cy="${p.y}" r="30" fill="none" stroke="${color}" stroke-width="1.5" stroke-dasharray="3 3"/>`:''}<circle cx="${p.x}" cy="${p.y}" r="18" fill="${color}" stroke="white" stroke-width="5" filter="url(#pin-shadow)"/><g transform="translate(${p.x-9} ${p.y-9})" color="white">${icon(glyph).replace('class="icon"','class="map-pin-icon" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"')}</g>${sub?`<rect x="${p.x-27}" y="${p.y+23}" width="54" height="21" rx="6" fill="white" stroke="#e0e3dc"/><text x="${p.x}" y="${p.y+37}" text-anchor="middle" class="marker-caption" fill="${color}">${esc(sub)}</text>`:''}<title>${esc(label)}</title></g>`;
-  }
-  const shelters = ui.layers.shelters ? state.shelters.map(s=>marker('shelter',s.id,lookup[s.node],s.status!=='open'?'#89958a':s.percent>95?'#ce4e36':s.percent>=90?'#b78315':'#2d936f','home',s.name,s.status==='standby'?t('standby'):Math.round(s.percent)+'%',ui.selected?.id===s.id)).join('') : '';
-  const incidents=ui.layers.incidents ? (state.incidents||[]).filter(i=>i.lat&&i.status!=='resolved'&&(i.active_count>0||ui.selected?.id===i.id)).map(i=>{
-    const p=projection(i.lng,i.lat), color=i.active_count?'#de5e25':'#798279';
-    return `<circle cx="${p.x}" cy="${p.y}" r="51" fill="${color}" opacity=".09"/><circle cx="${p.x}" cy="${p.y}" r="51" fill="none" stroke="${color}" opacity=".35" stroke-dasharray="4 5"/>${marker('incident',i.id,p,color,i.type,t(i.type),i.count+' SOS',ui.selected?.id===i.id)}`;
-  }).join('') : '';
-  const teams=ui.layers.teams&&!isCitizen ? (state.teams||[]).map(team=>marker('team',team.id,lookup[team.node],team.status==='available'?'#557795':'#3e68c0','team',team.name,'',ui.selected?.id===team.id)).join('') : '';
-  const citizen=projection(origin.lng,origin.lat);
-  return `<svg id="city-map" class="map-svg" viewBox="${mapView(ui)}" aria-label="${t('mapTitle')}. ${t('keyboardMap')}" tabindex="0"><defs><pattern id="grain" width="8" height="8" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r=".5" fill="#a2b099" opacity=".16"/></pattern><filter id="pin-shadow" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity=".18"/></filter></defs><rect x="-1500" y="-1000" width="4000" height="3000" fill="#eeebdf"/><rect x="-1500" y="-1000" width="4000" height="3000" fill="url(#grain)"/><path d="M-100 715Q90 675 300 714T710 704Q940 675 1100 750V1800H-100Z" fill="#a9d7e8"/><path d="M-100 699Q90 659 300 698T710 688Q940 659 1100 734" fill="none" stroke="#bdd7aa" stroke-width="16"/><path d="M-100 698Q90 658 300 697T710 687Q940 658 1100 733" fill="none" stroke="#fafbf2" stroke-width="4"/>
-  ${ui.layers.zones?'<path d="M49 117H489V685H49Z" fill="#c3c5ab" fill-opacity=".3" stroke="#6a735b" stroke-width="1.2" stroke-dasharray="7 6"/><path d="M493 117H927V685H493Z" fill="#f4c35a" fill-opacity=".17" stroke="#d18e26" stroke-width="1.2" stroke-dasharray="7 6"/>':''}
-  ${blocks}${park(499,333,80,65)}${park(703,505,85,57)}${park(499,164,80,65)}${roads}
-  <g class="district-label"><text x="230" y="111" text-anchor="middle">${t('west')}</text><text x="745" y="111" text-anchor="middle">${t('east')}</text><text x="294" y="442" text-anchor="middle" class="city-label">${t('cityLabel')}</text><text x="535" y="373" class="park-label" text-anchor="middle">${t('centerPark')}</text><text x="750" y="744" text-anchor="middle">${t('waterfront')}</text></g>
-  ${routePath?`<path d="${routePath}" fill="none" stroke="white" stroke-width="12" stroke-linejoin="round"/><path class="route-line" d="${routePath}" fill="none" stroke="#3a6cda" stroke-width="6" stroke-linejoin="round"/><path d="${routePath}" fill="none" stroke="#b9d0ff" stroke-width="1.5" stroke-dasharray="3 12"/>`:''}
-  ${isCitizen&&ui.chooseLocation?nodes.map(n=>`<circle class="node-hit" data-node="${n.id}" cx="${n.x}" cy="${n.y}" r="13" role="button" tabindex="0" aria-label="${n.lat.toFixed(4)}, ${n.lng.toFixed(4)}"/>`).join(''):''}
-  ${shelters}${teams}${incidents}
-  ${isCitizen?`<g class="you-marker"><circle cx="${citizen.x}" cy="${citizen.y}" r="27" fill="#356cd4" opacity=".13"/><circle cx="${citizen.x}" cy="${citizen.y}" r="10" fill="#356cd4" stroke="white" stroke-width="4"/><rect x="${citizen.x-56}" y="${citizen.y+21}" width="112" height="23" rx="6" fill="#263a4b"/><text x="${citizen.x}" y="${citizen.y+37}" text-anchor="middle" fill="white" class="marker-caption">${t('currentLocation')}</text></g>`:''}</svg>`;
-}
+export function mapCommand(command){if(!map)return;if(command==='zoom-in')map.zoomIn();if(command==='zoom-out')map.zoomOut();if(command==='reset-map')map.setView([40.374,49.847],15);}

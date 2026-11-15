@@ -112,9 +112,9 @@ def create_app(db_path=None,demo=None):
             request._body=b''.join(chunks)
         result=await call_next(request)
         result.headers['X-Content-Type-Options']='nosniff'
-        result.headers['Referrer-Policy']='no-referrer'
+        result.headers['Referrer-Policy']='strict-origin-when-cross-origin'
         result.headers['X-Frame-Options']='DENY'
-        result.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
+        result.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org; connect-src 'self' ws: wss:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
         if request.url.path.startswith('/api'):result.headers['Cache-Control']='no-store'
         return result
 

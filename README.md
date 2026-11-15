@@ -2,11 +2,13 @@
 
 Digital Challenge üçün işləyən FastAPI + WebSocket + offline web tətbiqi. Vətəndaş SOS-larını hadisələr üzrə birləşdirir, kritik zonaları müəyyən edir və dispetçerin müdaxiləsini qeydə alır.
 
-**Bu versiyanın xəritəsi Bakı koordinatlarına yerləşdirilmiş sintetik təlim şəbəkəsidir. Küçələr, məntəqələr və tutumlar rəsmi məlumat deyil.** Lokal qraf real xəritə paketi ilə əvəz edilənədək real təxliyə üçün istifadə edilməməlidir.
+**Yeni giriş səhifəsi:** Perimeter nümunəsinin səhifə quruluşunu izləyən narıncı giriş, sabit üst menyu, aşağı sürüşən xəritə/mətn bölmələri və funksiyalara birbaşa keçidlər. Əsas səhifə `/`, əməliyyat tətbiqi `/workspace.html` ünvanındadır.
 
-![Dispetçer paneli — sintetik demo](docs/preview.jpg)
+**Real xəritə:** Leaflet 1.9.4 + OpenStreetMap onlayn xəritəsi. Bakı mərkəzinin 6 156 real coğrafi elementdən ibarət OSM çıxarışı tətbiqlə birlikdə saxlanır və oflayn görünüşdə işləyir. OSM raster plitələri kütləvi yüklənmir. Mənbələr: [map-data.md](docs/map-data.md).
 
-**Yeni UI/UX:** vətəndaş üçün Watch Duty quruluşunda sarı başlıq və tam xəritə; dispetçer üçün Perimeter quruluşunda ağ başlıq, axtarış, xəritə alətləri və açılıb-bağlanan panel. Dizayn qərarları və yoxlamalar: [ui-ux.md](docs/ui-ux.md).
+**Təlim məlumatları:** SOS hadisələri, məntəqələr, tutumlar və hazırkı lokal marşrut qrafı simulyasiyadır. Real coğrafi fon əlavə edilməsi bu marşrutları rəsmi və ya real küçə marşrutuna çevirmir.
+
+![DigiMinds giriş səhifəsi](docs/landing-preview.jpg)
 
 ## Başlatmaq
 

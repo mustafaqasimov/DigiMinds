@@ -36,3 +36,11 @@ At the user's request the previous custom green dashboard was replaced with two 
 - **Dispatcher / Perimeter:** white logo/search header, slim white map toolbar, floating information panel, upper-right zoom and lower-right round layer/add controls.
 
 Original product logos and source code are not included. The visible structures were reimplemented around DigiMinds APIs. The synthetic offline map and backend behavior remain. This revision received JavaScript syntax checks, the existing lightweight UI/routing checks, and a short browser check of both layouts, SOS dialog and search. The backend/load/Windows suites were not rerun locally for this styling revision.
+
+## Scrollable homepage and geographic basemap revision
+
+The root route is now a separately authored presentation page following the supplied Perimeter website screenshots: a dark sticky header with large rounded navigation, orange hero, desktop/phone map composition, broad white map/text sections, about content, FAQ and closing CTA. Navigation opens real workspace entry points (`#sos`, `#shelters`, `#route`, `#dispatcher`, `#offline`) or scrolls to the chosen content section. Mobile navigation collapses into a menu.
+
+The workspace moved to `/workspace.html`. Its synthetic SVG basemap was removed and replaced with vendored Leaflet plus OpenStreetMap raster imagery and a bundled real OSM vector extract. The map DOM and viewport survive live state renders. Existing business workflows and training graph are preserved; see `map-data.md` for the distinction between real geography and simulated routing.
+
+Verification: JS syntax, existing UI tests, and focused desktop browser checks of the homepage, section navigation, real map display and offline-layer toggle. No extended load or Windows run was performed for this visual revision.

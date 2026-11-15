@@ -26,9 +26,9 @@ test('expired alerts are neutral; active capacity alerts remain critical',()=>{
  assert.ok(html.includes('data-alert="now" data-command="dispatch"'));
  assert.ok(html.indexOf('data-alert="now"')<html.indexOf('data-alert="old"'));
 });
-test('opening road edit mode exposes selectors, but road mutation lives only in details',()=>{
+test('road editing retains the interactive map, but mutation lives only in details',()=>{
  const c=context(['road:write'],{view:'dispatcher'});c.ui.editRoads=true;
- let html=renderLayout(c);assert.ok(html.includes('data-select="road"'));assert.ok(!html.includes('data-road='));
+ let html=renderLayout(c);assert.ok(html.includes('id="city-map"'));assert.ok(!html.includes('data-road='));
  c.ui.selected={kind:'road',id:c.state.roads[0].id};html=renderLayout(c);
  assert.ok(html.includes('data-road="'+c.state.roads[0].id+'"'));
  assert.ok(html.includes('This change immediately affects citizen routes.'));
