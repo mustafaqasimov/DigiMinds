@@ -1,1 +1,1 @@
-{"name":"digiminds-crisis-engine","private":true,"type":"module","scripts":{"dev":"python tools/dev.py","test":"python -m pytest -q && node --test tests/offline.test.mjs","load":"python tools/load_test.py"}}
+{"name":"digiminds-crisis-engine","private":true,"type":"module","scripts":{"dev":"python tools/dev.py","test":"python -m pytest -q && node --test tests/*.test.mjs","load":"python tools/load_test.py"}}

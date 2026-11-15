@@ -47,3 +47,7 @@ Verified in the live Chromium preview:
 ## Verification limits
 
 The map is synthetic. Real OSM import, surveyed shelter capacities, production authentication, physical dispatch integration and real CCTV calibration remain outside this prototype. No external routing API key was supplied: provider fallback/race behavior was tested, but a live authenticated OpenRouteService response was not. Mobile CSS is included, but this run did not perform a physical-device or screen-reader audit. Load numbers are a single-machine development measurement, not an SLA.
+
+## Map workspace redesign
+
+The November 15 UI redesign passed the existing 33 Python tests and 8 Node tests (3 routing, 5 UI regressions). Browser checks and reference-design decisions are recorded in [ui-ux.md](ui-ux.md). The latest preview screenshot is in [preview.jpg](preview.jpg).

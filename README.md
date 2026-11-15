@@ -6,6 +6,8 @@ Digital Challenge üçün işləyən FastAPI + WebSocket + offline web tətbiqi.
 
 ![Dispetçer paneli — sintetik demo](docs/preview.jpg)
 
+**Yeni UI/UX:** xəritə əsaslı iş sahəsi, hadisə filtrləri, məntəqə detalları, qatlar, təhlükəsiz yol idarəetməsi və mobil düzülüş. Dizayn qərarları və yoxlamalar: [ui-ux.md](docs/ui-ux.md).
+
 ## Başlatmaq
 
 **Windows üçün asan yol:** GitHub-da **Code → Download ZIP**, sonra **Extract All / Hamısını çıxart**. Çıxarılan qovluqdakı **`BASLAT.cmd`** faylını iki dəfə klikləyin. Python 3.12+ varsa avtomatik tapılır; yoxdursa Windows Package Manager vasitəsilə quraşdırılmağa çalışılır. İlk açılışda paketlər qurulur və server cavab verdikdən sonra brauzer açılır. Sonrakı açılışlarda dəyişməyən paketlər yenidən endirilmir. Terminalı açıq saxlayın. 3000 portu başqa tətbiqdədirsə, boş port seçilir və düzgün ünvan açılır. Python quraşdırılması mümkün olmasa, pəncərədə göstərilən təlimatı izləyin.
@@ -77,7 +79,7 @@ python -m vision.worker --source path/to/video.mp4 --coverage full \
 
 ```bash
 python -m pytest -q
-node --test tests/offline.test.mjs
+node --test tests/*.test.mjs
 python tools/load_test.py --isolated
 ```
 
