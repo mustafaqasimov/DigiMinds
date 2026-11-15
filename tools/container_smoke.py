@@ -20,7 +20,7 @@ def main():
     args = parser.parse_args()
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
-    def request(path, body=None, token=None, expected=200):
+    def request(path, body=None, token=None, expected=200, decode_json=False):
         headers = {'X-Requested-With': 'DigiMinds'}
         if token:
             headers['Authorization'] = 'Bearer ' + token
@@ -37,13 +37,14 @@ def main():
             assert response.status == expected, (path, response.status, expected)
             content_type = response.headers.get('Content-Type', '')
         mime = content_type.split(';', 1)[0].strip()
-        return json.loads(payload) if mime == 'application/json' or mime.endswith('+json') else payload
+        return json.loads(payload) if decode_json or mime == 'application/json' or mime.endswith('+json') else payload
 
     health = request('/api/health')
     assert health['ok'] and health['demo'], 'Smoke test requires a disposable demo server'
     assert b'DigiMinds' in request('/workspace.html')
     assert len(request('/app.js')) > 100
-    assert request('/baku.geojson')['type'] == 'FeatureCollection'
+    # Slim images may lack the OS MIME mapping for .geojson; verify its content.
+    assert request('/baku.geojson', decode_json=True)['type'] == 'FeatureCollection'
     request('/api/state', expected=401)
     if args.phase == 'seed':
         token = request('/api/auth/guest', {})['token']
