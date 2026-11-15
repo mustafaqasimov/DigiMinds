@@ -8,6 +8,10 @@ Digital Challenge üçün işləyən FastAPI + WebSocket + offline web tətbiqi.
 
 ## Başlatmaq
 
+**Windows üçün asan yol:** GitHub-da **Code → Download ZIP**, sonra **Extract All / Hamısını çıxart**. Çıxarılan qovluqdakı **`BASLAT.cmd`** faylını iki dəfə klikləyin. Python 3.12+ varsa avtomatik tapılır; yoxdursa Windows Package Manager vasitəsilə quraşdırılmağa çalışılır. İlk açılışda paketlər qurulur və server cavab verdikdən sonra brauzer açılır. Sonrakı açılışlarda dəyişməyən paketlər yenidən endirilmir. Terminalı açıq saxlayın. 3000 portu başqa tətbiqdədirsə, boş port seçilir və düzgün ünvan açılır. Python quraşdırılması mümkün olmasa, pəncərədə göstərilən təlimatı izləyin.
+
+`127.0.0.1` yalnız sizin kompüterinizi göstərir. Burada açılan bulud demo serverinə öz kompüterinizdə həmin ünvanla qoşula bilməzsiniz; `BASLAT.cmd` serveri məhz sizin kompüterinizdə başladır.
+
 Python 3.12+ tələb olunur. Frontend üçün npm paketi, CDN və xarici API açarı lazım deyil.
 
 ```bash

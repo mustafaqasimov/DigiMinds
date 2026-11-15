@@ -18,3 +18,15 @@ jobs:
       - run: python -m pytest -q
       - run: node --test tests/offline.test.mjs
       - run: python tools/load_test.py --isolated --requests 1000
+  windows-start:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check Windows setup and HTTP startup
+        shell: cmd
+        env:
+          DATABASE_PATH: ${{ runner.temp }}/digiminds-start.db
+        run: call BASLAT.cmd --smoke-test
