@@ -9,7 +9,9 @@ import json
 import ipaddress
 import os
 from pathlib import Path
+import shutil
 import socket
+import ssl
 import subprocess
 import sys
 import time
@@ -19,7 +21,11 @@ import webbrowser
 
 ROOT = Path(__file__).resolve().parent.parent
 # Local readiness traffic must stay on loopback, including with a system proxy.
-HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+# The LAN certificate is self-signed, so the loopback readiness probe skips verification.
+_LOCAL_TLS = ssl.create_default_context()
+_LOCAL_TLS.check_hostname = False
+_LOCAL_TLS.verify_mode = ssl.CERT_NONE
+HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPSHandler(context=_LOCAL_TLS))
 
 
 def healthy(url):
@@ -40,6 +46,47 @@ def choose_port(preferred, host='127.0.0.1'):
             except OSError:
                 continue
     raise RuntimeError('3000-3010 portlari mesguldur. --port ile basqa port secin.')
+
+
+def lan_address():
+    """Private Wi-Fi/LAN address; UDP connect selects a route without sending a packet."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(('192.0.2.1', 9))
+            address = probe.getsockname()[0]
+        ip = ipaddress.ip_address(address)
+        if ip.is_private and not ip.is_loopback and not ip.is_link_local:
+            return address
+    except OSError:
+        pass
+    return None
+
+
+def find_openssl():
+    found = shutil.which('openssl')
+    if found:
+        return found
+    for base in (os.environ.get('ProgramFiles', r'C:\Program Files'), os.environ.get('ProgramFiles(x86)', '')):
+        for sub in ('Git/usr/bin/openssl.exe', 'Git/mingw64/bin/openssl.exe'):
+            if base and (Path(base) / sub).is_file():
+                return str(Path(base) / sub)
+    raise RuntimeError('openssl tapilmadi. Git for Windows qurasdirin ve ya openssl-i PATH-e elave edin.')
+
+
+def certificate(ip):
+    """Self-signed certificate for this LAN address. Phones expose motion sensors only over HTTPS."""
+    folder = ROOT / 'data/tls'
+    cert, key, stamp = folder / 'cert.pem', folder / 'key.pem', folder / 'address.txt'
+    if cert.is_file() and key.is_file() and stamp.is_file() and stamp.read_text().strip() == ip:
+        return cert, key
+    folder.mkdir(parents=True, exist_ok=True)
+    print('[TLS] Sertifikat yaradilir:', ip, flush=True)
+    subprocess.run([find_openssl(), 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '30',
+                    '-keyout', str(key), '-out', str(cert), '-subj', '/CN=DigiMinds LAN demo',
+                    '-addext', f'subjectAltName=IP:{ip},IP:127.0.0.1,DNS:localhost'],
+                   check=True, cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    stamp.write_text(ip)
+    return cert, key
 
 
 def prepare_python():
@@ -73,13 +120,17 @@ def main():
     parser.add_argument('--smoke-test', action='store_true', help='Verify HTTP startup, then stop; no browser')
     parser.add_argument('--lan', action='store_true', help='Allow devices on your local network to connect')
     parser.add_argument('--jury', action='store_true', help='Open the jury presentation screen')
+    parser.add_argument('--https', action='store_true', help='LAN + HTTPS with a self-signed certificate, for phone motion sensors')
     args = parser.parse_args()
     if sys.version_info < (3, 12):
         raise RuntimeError('Python 3.12 ve ya daha yeni versiya lazimdir.')
     if not 1024 <= args.port <= 65535:
         parser.error('Port 1024..65535 araliginda olmalidir')
 
-    default_url = f'http://127.0.0.1:{args.port}'
+    if args.https:
+        args.lan = True
+    scheme = 'https' if args.https else 'http'
+    default_url = f'{scheme}://127.0.0.1:{args.port}'
     entry='/presentation.html' if args.jury else '/'
     if not args.smoke_test and not args.lan and healthy(default_url):
         print(f'DigiMinds artiq isleyir: {default_url}', flush=True)
@@ -90,10 +141,18 @@ def main():
     executable = prepare_python()
     host='0.0.0.0' if args.lan else '127.0.0.1'
     port = choose_port(args.port,host)
-    url = f'http://127.0.0.1:{port}'
+    url = f'{scheme}://127.0.0.1:{port}'
+    command = [str(executable), str(ROOT / 'tools/dev.py'), '--host', host, '--port', str(port)]
+    env = None
+    if args.https:
+        ip = lan_address()
+        if not ip:
+            raise RuntimeError('Wi-Fi/LAN IPv4 unvani tapilmadi. Noutbuku Wi-Fi ve ya hotspot-a qosun.')
+        cert, key = certificate(ip)
+        command += ['--ssl-certfile', str(cert), '--ssl-keyfile', str(key)]
+        env = {**os.environ, 'DIGIMINDS_PUBLIC_URL': f'https://{ip}:{port}'}
     print(f'[3/3] Server basladilir: {url}', flush=True)
-    process = subprocess.Popen([str(executable), str(ROOT / 'tools/dev.py'),
-                                '--host', host, '--port', str(port)], cwd=ROOT)
+    process = subprocess.Popen(command, cwd=ROOT, env=env)
     try:
         deadline = time.monotonic() + 30
         while not healthy(url):
@@ -114,9 +173,12 @@ def main():
                 for address in addresses:
                     ip=ipaddress.ip_address(address)
                     if ip.is_private and not ip.is_loopback and not ip.is_link_local:
-                        print(f'TELEFON PULTU: http://{address}:{port}/remote.html?room=DIGI26', flush=True)
+                        print(f'TELEFON PULTU: {scheme}://{address}:{port}/remote.html?room=DIGI26', flush=True)
             except OSError:
                 print('Wi-Fi IPv4 unvanini ipconfig ile tapin.', flush=True)
+            if args.https:
+                print(f'SENSOR SEHIFESI (telefonlar): https://{ip}:{port}/sensor', flush=True)
+                print('Brauzer xeberdarliq versə: Advanced / Etrafli -> Proceed / Davam et.', flush=True)
             print('Telefon ve noutbuk eyni Wi-Fi/hotspot-da olmalidir.', flush=True)
         if args.smoke_test:
             print('HTTP readiness and frontend document: PASS', flush=True)

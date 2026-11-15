@@ -18,6 +18,7 @@ from . import events as mass_events
 from .geo import blocked_polygons, crosses_closure, distance
 from .circuit import CircuitBreaker
 from .drills import install_drills
+from .seismic import install_seismic
 from .profiles import ProfileUpdate, profile_record, shared_profiles
 
 ROOT=Path(__file__).resolve().parent.parent
@@ -175,7 +176,7 @@ def create_app(db_path=None,demo=None):
         return {'token':token,'user':{k:v for k,v in user.items() if k!='password'},'demo':demo}
 
     @application.get('/api/health')
-    def health():return {'ok':True,'demo':demo,'external_routing_configured':bool(os.getenv('ORS_API_KEY')),'dataset':'synthetic-training-baku-v1'}
+    def health():return {'ok':True,'demo':demo,'external_routing_configured':bool(os.getenv('ORS_API_KEY')),'dataset':'synthetic-training-baku-v1','public_url':os.getenv('DIGIMINDS_PUBLIC_URL') or None}
 
     @application.post('/api/auth/guest')
     def guest(request:Request,response:Response):
@@ -477,6 +478,9 @@ def create_app(db_path=None,demo=None):
             store.audit(u['id'],'demo.events','reset')
         return {'ok':True}
 
+    # Declared before /api/demo/{scenario}, which would otherwise capture /api/demo/seismic.
+    install_seismic(application,store,require,throttle,demo)
+
     @application.post('/api/demo/{scenario}')
     def scenario(scenario:Literal['sos_wave','provider','websocket'],body:Switch,request:Request):
         u=require(request,'demo:write')
@@ -510,6 +514,9 @@ def create_app(db_path=None,demo=None):
                     last=snapshot['revision'];last_sent=time.monotonic()
                 await asyncio.sleep(.5)
         except (WebSocketDisconnect,RuntimeError,asyncio.TimeoutError):pass
+
+    @application.get('/sensor')
+    def sensor_page():return FileResponse(ROOT/'frontend/sensor.html')
 
     @application.get('/')
     def index():return FileResponse(ROOT/'frontend/index.html')

@@ -62,6 +62,24 @@ və səs, qəbul göstəriciləri və ümumi dayandırma. [Təqdimat təlimatı 
 
 **Yeni subtask — xarici xəritə/marşrut API nasazlığı:** 503 və uzun cavabda avtomatik lokal Dijkstra, 4,5 saniyəlik provayder limiti, closed/open/half-open circuit breaker, 4 paralel çağırış limiti və üç dildə daimi ehtiyat rejimi bildirişi. Xəritə tile-ları yüklənməyəndə lokal Bakı xəritəsi açılır. Dispetçerin **Challenge laboratoriyası** bölməsində **HTTP 503 yarat**, **6 saniyə gecikdir**, **Servisi bərpa et** düymələri ilə yoxlayın. [Araşdırma, memarlıq və jüri nümayişi](docs/routing-resilience.md).
 
+## Titrəşimə əsaslanan zəlzələ siqnalı və vətəndaşın geri dönüşü
+
+Telefonlar `/sensor` səhifəsində akselerometr məlumatından STA/LTA trigger-i hesablayır. Bu, MyShake və Earthquake Network-un istifadə etdiyi yanaşmadır. Server **10 saniyə ərzində, 1 km radiusda ≥3 fərqli cihazdan** siqnal alanda titrəməni təsdiqləyir. Tək cihazın siqnalı, məsələn telefonun düşməsi, zəlzələ sayılmır. Tələb olunan cihaz sayı laboratoriyada 1-4 arasında seçilir.
+
+Titrəmə təsdiqlənəndə:
+- hamıya görünən **ZƏLZƏLƏ XƏBƏRDARLIĞI** çıxır;
+- demo rejimində komandanın zəlzələ təlimi alarmı otağa qoşulmuş bütün cihazlarda avtomatik çalır;
+- vətəndaşdan **"Vəziyyətiniz necədir?"** soruşulur: **Təhlükəsizəm**, **Yardım lazımdır** (tibbi SOS kimi gedir), **Binada qalmışam** (dağıntı SOS kimi gedir);
+- dispetçer cavabların sayını, xəritədə isə yardım istəyən nöqtələri görür.
+
+**Başlatmaq:** `BASLAT-SENSOR.cmd` (və ya `python tools/start.py --https`). Telefonlar hərəkət sensorunu yalnız HTTPS üzərindən verir, ona görə self-signed sertifikat yaradılır. Telefonlarda terminalda çap olunan `https://<IP>:3000/sensor` ünvanı açılır və brauzerdə "Advanced → Proceed" seçilir.
+
+**Google:** Google-un Android zəlzələ xəbərdarlığını üçüncü tərəf tətbiqinə ötürən açıq API yoxdur ([araşdırma](docs/earthquake-drill.md)). Ona görə bu siqnal DigiMinds-in öz sensor şəbəkəsindən gəlir. Bu, rəsmi erkən xəbərdarlıq xidməti deyil.
+
+## İstilik xəritəsi: toplaşma məntəqələrinin doluluğu
+
+"Xəritə qatları" menyusundakı **İstilik xəritəsi** hər açıq məntəqənin ətrafında doluluğa görə rənglənmiş bir işıq ləkəsi göstərir: yaşıl (boş) → sarı (70%) → narıncı (90%) → qırmızı (100%+). Yaxınlıqda tədbir varsa, rəng tədbiri nəzərə alan potensial doluluğu göstərir. Vətəndaş yalnız 2.5 km daxilindəki məntəqələri görür. Legenda "Legenda" düyməsindədir.
+
 ## Kütləvi tədbirlər və toplaşma məntəqələrinin potensial doluluğu
 
 Konsert, futbol matçı, festival və mitinq kimi tədbirlər yer, gözlənilən iştirakçı sayı və vaxt ilə qeyd olunur. Hər tədbir üçün hazırda yerində olan insan sayı vaxta görə dəyişir: başlamazdan 90 dəqiqə əvvəl gəliş başlayır, tədbir boyu tam say saxlanır, bitəndən sonra 45 dəqiqə ərzində dağılış gedir.

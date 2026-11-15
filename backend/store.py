@@ -7,6 +7,7 @@ from pathlib import Path
 from .geo import distance, zone_for, shortest_path
 from .seed import seed_map
 from . import events as mass_events
+from . import seismic
 from .security import PERMISSIONS
 
 
@@ -33,6 +34,9 @@ class Store:
           CREATE UNIQUE INDEX IF NOT EXISTS one_reporter_per_incident ON reports(user_id,incident_id);
           CREATE INDEX IF NOT EXISTS recent_reports ON reports(created,zone);
           CREATE TABLE IF NOT EXISTS actions(alert_id TEXT,action TEXT,resource TEXT,actor TEXT,created REAL,PRIMARY KEY(alert_id,action));
+          CREATE TABLE IF NOT EXISTS seismic(id TEXT PRIMARY KEY,device TEXT,label TEXT,lat REAL,lng REAL,peak REAL,ratio REAL,test INTEGER,created REAL);
+          CREATE INDEX IF NOT EXISTS recent_seismic ON seismic(created);
+          CREATE TABLE IF NOT EXISTS checkins(alert_id TEXT,user_id TEXT,status TEXT,lat REAL,lng REAL,created REAL,PRIMARY KEY(alert_id,user_id));
           CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY AUTOINCREMENT,actor TEXT,action TEXT,target TEXT,created REAL);
         ''')
         with self.lock,self.db:
@@ -129,6 +133,7 @@ class Store:
         for s in self.objects('shelter'):
             if s['status']=='open' and s['occupancy']/s['capacity']*100>cfg['critical_percent']:
                 triggers.append(('capacity:'+s['id'],'capacity',s['id'],{'percent':s['occupancy']/s['capacity']*100,'count':s['occupancy'],'capacity':s['capacity']}))
+        triggers.extend(seismic.events(self,now,cfg))
         existing={a['key']:a for a in self.objects('alert') if a['status']!='resolved'}
         active=set()
         for key,kind,target,evidence in triggers:
@@ -167,6 +172,7 @@ class Store:
             else:
                 # Public maps do not expose individual SOS coordinates or identities.
                 result['incidents']=[{k:v for k,v in x.items() if k in ('id','type','zone','count','active_count','status')} for x in incidents]
+            result.update(seismic.snapshot(self,user,self.clock()))
             if user:
                 result['viewer']=user
                 result['mine']=[dict(r) for r in self.db.execute('SELECT id,incident_id,type,status,created FROM reports WHERE user_id=? ORDER BY created DESC',(user['id'],))]
@@ -193,6 +199,7 @@ class Store:
             a=self.get('alert',alert_id)
             if not a or a['status']=='resolved':raise ValueError('alert_unavailable')
             nodes=self.map['nodes'];roads=self.objects('road')
+            if a['kind']=='seismic':raise ValueError('not_actionable')
             if a['kind']=='capacity':
                 target=self.get('shelter',a['target']);target_node=target['node'];needed=[]
             else:

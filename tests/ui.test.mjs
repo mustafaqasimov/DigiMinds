@@ -81,3 +81,26 @@ test('mass gatherings: dispatcher forecast, reserve action and citizen nearby wa
  c.origin={lat:40.365,lng:49.828};
  assert.ok(!renderLayout(c).includes('Mass gathering nearby'));
 });
+test('earthquake warning asks citizens for status; dispatch sees responses and heat legend',async()=>{
+ const {seismicMessages,heatColor}=await import('../frontend/seismic-i18n.js');
+ const words={...translations.en,...uiTranslations.en,...seismicMessages.en};
+ const c=context(['sos:own'],{t:k=>words[k]||k});
+ c.state.seismic=[{id:'q1',created:1,devices:3,needed:3,peak:8,test:false,my_status:null}];
+ let html=renderLayout(c);
+ assert.ok(html.includes('EARTHQUAKE WARNING') && html.includes('Are you OK?'));
+ for(const s of ['safe','need_help','trapped'])assert.ok(html.includes(`data-checkin="${s}" data-alert-id="q1"`));
+ c.state.seismic[0].my_status='trapped';html=renderLayout(c);
+ assert.ok(html.includes('Your answer is recorded') && html.includes('sent to dispatch as SOS'));
+ const d=context(['dashboard:read','demo:write'],{view:'dispatcher',t:k=>words[k]||k,health:{demo:true,public_url:'https://10.0.0.5:3000'}});
+ d.state.seismic=[{id:'q1',created:1,devices:3,needed:3,peak:8,test:false,checkins:{safe:5,need_help:2,trapped:1},help_points:[]}];
+ d.state.alerts=[{id:'q1',kind:'seismic',target:'r',created:1,status:'open',condition_active:true,evidence:{devices:3,needed:3,labels:['A','B','C'],peak:8,spread_seconds:1.5,test:false}}];
+ d.state.sensors=[{id:'x',label:'Phone A',level:2.4,last_seen:1}];
+ d.ui.panel='alerts';d.ui.legend=true;d.ui.layers.heat=true;d.ui.dialog='lab';
+ html=renderLayout(d);
+ assert.ok(html.includes('I am trapped') && html.includes('>5<') && html.includes('Phone A'));
+ assert.ok(!html.includes('data-checkin='));
+ assert.ok(html.includes('https://10.0.0.5:3000/sensor') && html.includes('data-seismic="3"'));
+ assert.ok(html.includes('Assembly point occupancy'));
+ assert.equal(heatColor(0),'#2d936f');assert.equal(heatColor(150),'#d63c2c');
+ assert.match(heatColor(80),/^#[0-9a-f]{6}$/);
+});

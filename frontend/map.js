@@ -1,5 +1,6 @@
 import {addBase} from './map-base.js';
 import {LEVEL_COLORS} from './events-i18n.js';
+import {heatColor} from './seismic-i18n.js';
 let map,overlays,base,context,lastSelection,container;
 export function renderMap({t}){return `<div id="city-map" class="real-map" aria-label="${t('mapTitle')}" tabindex="0"></div>`;}
 export function mountMap(c,{onLocation}){
@@ -34,6 +35,15 @@ export function mountMap(c,{onLocation}){
  if(ui.layers.shelters)for(const s of state.shelters)pin('shelter',s.id,lookup[s.node],s.status!=='open'?'#919b91':s.percent>95?'#ce4e36':s.percent>=90?'#c18c18':'#2d936f','home',s.name,s.status==='standby'?t('standby'):Math.round(s.percent)+'%');
  if(ui.layers.teams&&!isCitizen)for(const team of state.teams||[])pin('team',team.id,lookup[team.node],team.status==='available'?'#557795':'#3e68c0','team',team.name,'');
  if(ui.layers.incidents)for(const i of state.incidents||[]){if(!i.lat||i.status==='resolved'||!(i.active_count>0||ui.selected?.id===i.id))continue;L.circle([i.lat,i.lng],{radius:180,color:'#e77135',weight:1,fillColor:'#f79759',fillOpacity:.1,dashArray:'4 5',interactive:false}).addTo(overlays);pin('incident',i.id,i,'#e36629',i.type,t(i.type),i.count+' SOS');}
+ // Occupancy heat: stacked translucent rings glow brighter at the centre. Citizens see nearby shelters only.
+ if(ui.layers.heat)for(const s of state.shelters){
+  const p=lookup[s.node];if(!p||s.status!=='open')continue;
+  if(isCitizen&&Math.hypot((p.lat-origin.lat)*111320,(p.lng-origin.lng)*111320*Math.cos(origin.lat*Math.PI/180))>2500)continue;
+  const value=s.event_percent??s.percent,color=heatColor(value),radius=180+s.capacity*.25;
+  for(let i=0;i<7;i++)L.circle(pos(p),{radius:radius*(1-i/7),stroke:false,fillColor:color,fillOpacity:.075,interactive:false}).addTo(overlays);
+ }
+ // Dispatch view: where citizens reported needing help after a warning.
+ if(!isCitizen)for(const q of state.seismic||[])for(const h of q.help_points||[])L.circleMarker([h.lat,h.lng],{radius:7,color:'white',weight:2,fillColor:h.status==='trapped'?'#cc4c3a':'#e0a526',fillOpacity:1}).bindTooltip(t('checkin_'+h.status)).addTo(overlays);
  if(ui.layers.events)for(const e of state.events||[]){
   if(!e.lat||e.phase==='ended')continue;
   const chosen=ui.selected?.kind==='event'&&ui.selected.id===e.id,color=e.worst>100?'#ce4e36':e.worst>=70?'#d9772b':'#7b5cc4';

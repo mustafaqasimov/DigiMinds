@@ -8,9 +8,11 @@ import {createProfileUI} from './profile.js';
 import {createEarthquakeDemo} from './earthquake.js';
 import {quakeMessages} from './earthquake-i18n.js';
 import {eventMessages} from './events-i18n.js';
+import {seismicMessages} from './seismic-i18n.js';
 for (const locale of Object.keys(resilienceMessages)) Object.assign(translations[locale],resilienceMessages[locale]);
 for (const locale of Object.keys(uiTranslations)) Object.assign(translations[locale], uiTranslations[locale]);
 for (const locale of Object.keys(eventMessages)) Object.assign(translations[locale],eventMessages[locale]);
+for (const locale of Object.keys(seismicMessages)) Object.assign(translations[locale],seismicMessages[locale]);
 for (const locale of Object.keys(quakeMessages)) translations[locale].earthquakeDemo=quakeMessages[locale].launch;
 import {localRoutes,outbox,cache} from './offline.js';
 const $=s=>document.querySelector(s),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -20,7 +22,7 @@ const paths={shield:'M12 3 20 6v6c0 5-8 9-8 9S4 17 4 12V6Z M9 12l2 2 4-5',map:'m
 Object.assign(paths,{menu:'M4 6h16 M4 12h16 M4 18h16','chevron-left':'m15 5-7 7 7 7',cloud:'M6 18a5 5 0 1 1 0-10 7 7 0 0 1 13-1 5 5 0 0 1-1 11Z M9 13l2 2 5-5',account:'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M15 9a3 3 0 1 1-6 0 3 3 0 0 1 6 0 M6 19a6 6 0 0 1 12 0',navigation:'m3 10 18-7-7 18-3-8Z',close:'m6 6 12 12M6 18 18 6',search:'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',chevron:'m9 5 7 7-7 7','chevron-down':'m6 9 6 6 6-6',layers:'m3 7 9-5 9 5-9 5Z M3 12l9 5 9-5 M3 17l9 5 9-5',warning:'m12 3 10 18H2Z M12 9v5 M12 17h.01',focus:'M8 3H3v5 M16 3h5v5 M3 16v5h5 M21 16v5h-5 M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0',plus:'M12 5v14 M5 12h14',minus:'M5 12h14',eye:'M2 12c5-10 15-10 20 0-5 10-15 10-20 0Z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0',info:'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M12 11v6 M12 7h.01',flask:'M9 3h6 M10 3v7L4 20h16l-6-10V3 M7 15h10',walk:'M14 4a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0 M8 13l2-5h3l3 5h3 M12 8l-2 8-4 5 M10 16h4l2 5',refresh:'M20 7v5h-5 M4 17v-5h5 M5 8a8 8 0 0 1 14-2l1 6 M4 12l1 6a8 8 0 0 0 14-2'});
 Object.assign(paths,{ticket:'M3 7h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4Z M14 7v10',phone:'M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z'});
 const icon=name=>`<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[name]||paths.shield}"/></svg>`;
-const ui={drawer:null,legend:false,panel:null,search:'',filter:'all',selected:null,dialog:null,layerMenu:false,layers:{shelters:true,incidents:true,teams:true,zones:true,events:true},zoom:1,pan:{x:0,y:0},chooseLocation:false,editRoads:false,sending:false,offlineMap:location.hash==='#offline'};
+const ui={drawer:null,legend:false,panel:null,search:'',filter:'all',selected:null,dialog:null,layerMenu:false,layers:{shelters:true,incidents:true,teams:true,zones:true,events:true,heat:true},zoom:1,pan:{x:0,y:0},chooseLocation:false,editRoads:false,sending:false,offlineMap:location.hash==='#offline'};
 let profileOpen=location.hash==='#profile';
 let healthReady=false;
 let dialogOpener=null,lastDialog=null,ignoreMapClickUntil=0;
@@ -35,7 +37,10 @@ const quake=createEarthquakeDemo({api,beforeOpen:()=>{ui.dialog=null;render();},
 function setConnection(next){if(connection!==next){connection=next;render();}}
 // Event attendance moves with the clock, not with the store revision.
 const eventSignature=s=>JSON.stringify((s?.events||[]).map(e=>[e.id,e.phase,e.on_site]));
-function consume(s){const changed=!state||state.revision!==s.revision||s.shelters.some((v,i)=>v.stale!==state.shelters[i]?.stale)||eventSignature(state)!==eventSignature(s);const roleChanged=s.viewer&&user?.role!==s.viewer.role;state=s;if(s.viewer){user=s.viewer;if(roleChanged)view=operator()?'dispatcher':can('assignment:read')?'responder':'citizen';if(view!=='citizen'&&!operator()&&!can('assignment:read'))view='citizen';}const pub={map:s.map,roads:s.roads,shelters:s.shelters,config:s.config,server_time:s.server_time,revision:s.revision,dataset:s.dataset,incidents:[],stats:s.stats};cache.put('map',pub).catch(()=>{});const signature=JSON.stringify([s.roads.filter(r=>r.blocked).map(r=>r.id),s.shelters.map(x=>[x.id,x.status,x.occupancy,x.capacity])]);if(lastMapSignature&&lastMapSignature!==signature){clearTimeout(autoRouteTimer);autoRouteTimer=setTimeout(()=>findRoute(true),180);}lastMapSignature=signature;if(changed)render();}
+// undefined until the first snapshot, so an old warning is not replayed on page load.
+let seenSeismic;
+function notifySeismic(s){const e=s.seismic?.[0];if(e&&e.id!==seenSeismic&&(seenSeismic!==undefined||s.server_time-e.created<30)){navigator.vibrate?.([400,150,400]);ui.drawer=true;setTimeout(()=>toast(t('seismicAlert')+' · '+t('seismicAdvice')),0);}if(e)seenSeismic=e.id;else if(seenSeismic===undefined)seenSeismic=null;}
+function consume(s){notifySeismic(s);const changed=!state||state.revision!==s.revision||s.shelters.some((v,i)=>v.stale!==state.shelters[i]?.stale)||eventSignature(state)!==eventSignature(s);const roleChanged=s.viewer&&user?.role!==s.viewer.role;state=s;if(s.viewer){user=s.viewer;if(roleChanged)view=operator()?'dispatcher':can('assignment:read')?'responder':'citizen';if(view!=='citizen'&&!operator()&&!can('assignment:read'))view='citizen';}const pub={map:s.map,roads:s.roads,shelters:s.shelters,config:s.config,server_time:s.server_time,revision:s.revision,dataset:s.dataset,incidents:[],stats:s.stats};cache.put('map',pub).catch(()=>{});const signature=JSON.stringify([s.roads.filter(r=>r.blocked).map(r=>r.id),s.shelters.map(x=>[x.id,x.status,x.occupancy,x.capacity])]);if(lastMapSignature&&lastMapSignature!==signature){clearTimeout(autoRouteTimer);autoRouteTimer=setTimeout(()=>findRoute(true),180);}lastMapSignature=signature;if(changed)render();}
 async function refresh(){try{if(!healthReady){health=await api('/health');healthReady=true;}consume(await api('/state'));if(connection!=='live')setConnection('polling');if(user&&!ws&&!reconnectTimer)connect();await flush();}catch(e){if(e.network)setConnection('offline');else if(e.status===401){closeSocket();setConnection('offline');}}}
 function closeSocket(){clearTimeout(reconnectTimer);reconnectTimer=null;if(ws){ws.onclose=null;ws.close();ws=null;}}
 function connect(){closeSocket();if(!user)return;const socket=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws`);ws=socket;socket.onopen=()=>{retries=0;setConnection('live');flush();};socket.onmessage=event=>{try{const payload=JSON.parse(event.data);if(payload.type==='state')consume(payload.data);}catch{}};socket.onclose=()=>{if(ws!==socket)return;setConnection(navigator.onLine?'polling':'offline');reconnectTimer=setTimeout(connect,Math.min(12000,800*2**Math.min(retries++,4))+Math.random()*300);};socket.onerror=()=>socket.close();}
@@ -114,6 +119,8 @@ document.addEventListener('click',async e=>{
   if(b.dataset.view){resetWorkspace();if(b.dataset.view==='citizen'){if(user?.role!=='citizen'){await api('/auth/logout',{method:'POST'});await api('/auth/guest',{method:'POST'});await identity();connect();}view='citizen';await refresh();await findRoute();}else if(operator()){view='dispatcher';render();}else if(can('assignment:read')){view='responder';render();}else{ui.dialog='login';render();}return;}
   if(b.dataset.login){await signIn('demo-'+b.dataset.login,'demo');return;}
   if(b.dataset.node){const n=state.map.nodes.find(n=>n.id===b.dataset.node);origin={lat:n.lat,lng:n.lng};ui.chooseLocation=false;await findRoute();return;}
+  if(b.dataset.checkin){await api(`/seismic/${b.dataset.alertId}/checkin`,{method:'POST',body:JSON.stringify({status:b.dataset.checkin,lat:origin.lat,lng:origin.lng})});toast(t('checkinSaved'));await refresh();return;}
+  if(b.dataset.seismic){await api('/demo/seismic',{method:'POST',body:JSON.stringify({devices:Number(b.dataset.seismic)})});await refresh();return;}
   if(b.dataset.eventPrepare){await api(`/events/${b.dataset.eventPrepare}/prepare`,{method:'POST'});toast(t('prepared'));await refresh();return;}
   if(b.dataset.eventDelete){await api('/events/'+b.dataset.eventDelete,{method:'DELETE'});ui.selected=null;toast(t('confirmed'));await refresh();return;}
   if(b.dataset.road){const r=state.roads.find(r=>r.id===b.dataset.road);await api('/roads/'+r.id,{method:'PATCH',body:JSON.stringify({enabled:!r.blocked})});await refresh();return;}
@@ -150,6 +157,7 @@ document.addEventListener('click',async e=>{
    case'lab':if(can('demo:write')){ui.dialog='lab';render();}break;
    case'admin':if(can('role:write')){ui.dialog='admin';await loadAdmin();}break;
    case'about':ui.dialog='about';render();break;
+   case'seismic-reset':if(can('demo:write')){await api('/demo/seismic/reset',{method:'POST'});toast(t('confirmed'));await refresh();}break;
    case'demo-events':if(can('demo:write')){await api('/demo/events',{method:'POST'});toast(t('confirmed'));await refresh();}break;
    case'admin-refresh':await loadAdmin();break;
    case'sync':await flush();if(pending.length)toast(t('pendingLogin'));break;
