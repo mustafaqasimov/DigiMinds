@@ -132,7 +132,7 @@ document.addEventListener('click',async e=>{
   if(b.dataset.road){const r=state.roads.find(r=>r.id===b.dataset.road);await api('/roads/'+r.id,{method:'PATCH',body:JSON.stringify({enabled:!r.blocked})});await refresh();return;}
   if(b.dataset.sos){await sendSOS(b.dataset.sos);return;}
   if(b.dataset.support){await sendSOS(b.dataset.type,b.dataset.support);return;}
-  if(b.dataset.alert){await api(`/alerts/${b.dataset.alert}/${b.dataset.command}`,{method:'POST'});toast(t('confirmed'));await refresh();return;}
+  if(b.dataset.alert){if(ui.alertPending)return;ui.alertPending=b.dataset.alert;render();try{await api(`/alerts/${b.dataset.alert}/${b.dataset.command}`,{method:'POST'});toast(t('confirmed'));await refresh();}finally{ui.alertPending=null;render();}return;}
   if(b.dataset.occupancy){const s=state.shelters.find(s=>s.id===b.dataset.occupancy);await api(`/shelters/${s.id}/occupancy`,{method:'PATCH',body:JSON.stringify({occupancy:Math.ceil(s.capacity*Number(b.dataset.percent)/100),source:'manual'})});await refresh();return;}
   if(b.dataset.team){await api('/teams/'+b.dataset.team,{method:'PATCH',body:JSON.stringify({status:b.dataset.status})});await refresh();return;}
   if(b.dataset.providerScenario){await api('/demo/routing-provider',{method:'POST',body:JSON.stringify({mode:b.dataset.providerScenario})});mode='auto';await findRoute();return;}

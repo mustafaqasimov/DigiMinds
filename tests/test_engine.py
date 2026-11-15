@@ -102,7 +102,7 @@ def test_occupancy_exact_thresholds_and_reroute(client,app):
         assert r.status_code==200
         paths=client.get('/api/routes?lat=40.3725&lng=49.842&mode=local',headers=h).json()['routes']
         assert any(p['shelter_id']=='s1' for p in paths)==has_route
-        assert any(a['kind']=='capacity' and a['condition_active'] for a in app.state.store.objects('alert'))==red
+        assert any(a['kind']=='capacity' and a['condition_active'] and a['severity']=='critical' for a in app.state.store.objects('alert'))==red
 
 def test_closed_road_never_in_path_and_all_closed_no_route(client,app):
     h=login(client)

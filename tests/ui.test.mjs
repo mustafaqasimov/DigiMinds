@@ -25,7 +25,8 @@ test('expired alerts are neutral; active capacity alerts remain critical',()=>{
  assert.ok(html.includes('alert-card is-archived'));
  assert.ok(html.includes('Trigger is no longer active'));
  assert.ok(html.includes('data-alert="now" data-command="dispatch"'));
- assert.ok(html.indexOf('data-alert="now"')<html.indexOf('data-alert="old"'));
+ assert.ok(!html.includes('data-alert="old"'));
+ assert.ok(html.indexOf('data-alert="now"')>=0);
 });
 test('road editing retains the interactive map, but mutation lives only in details',()=>{
  const c=context(['road:write'],{view:'dispatcher'});c.ui.editRoads=true;
@@ -122,4 +123,39 @@ test('earthquake warning asks citizens for status; dispatch sees responses and h
  assert.ok(html.includes('Assembly point occupancy'));
  assert.equal(heatColor(0),'#2d936f');assert.equal(heatColor(150),'#d63c2c');
  assert.match(heatColor(80),/^#[0-9a-f]{6}$/);
+});
+
+test('90% capacity offers reserve only; critical response is one click and completed actions are explicit',()=>{
+ const c=context(['dashboard:read','incident:act'],{view:'dispatcher'});c.ui.panel='alerts';
+ const a={id:'cap',kind:'capacity',target:'s1',created:2,evidence:{percent:90},condition_active:true,status:'open',severity:'warning',actions:{},options:{dispatch:{id:'t1',name:'Atlas',meters:200},open_shelter:{id:'s5',name:'Reserve',meters:300}}};
+ c.state.alerts=[a];
+ let html=renderLayout(c);
+ assert.ok(html.includes('is-warning') && html.includes('PREPARE RESERVE SHELTER'));
+ assert.ok(html.includes('data-command="open_shelter"'));
+ assert.ok(!html.includes('data-command="dispatch"') && !html.includes('data-command="respond"'));
+ a.severity='critical';a.evidence.percent=95.25;html=renderLayout(c);
+ assert.ok(html.includes('is-critical') && html.includes('data-command="respond"'));
+ assert.ok(html.includes('Send team and open shelter') && html.includes('95.3%'));
+ a.actions={dispatch:'t1',open_shelter:'s5'};html=renderLayout(c);
+ assert.ok(html.includes('Team dispatched') && html.includes('Shelter opened'));
+ assert.ok(!html.includes('data-command="dispatch"') && !html.includes('data-command="open_shelter"'));
+});
+test('capacity controls appear in shelter details; observers cannot execute them',()=>{
+ const c=context(['dashboard:read','incident:act'],{view:'dispatcher'});
+ c.ui.selected={kind:'shelter',id:'s1'};
+ c.state.alerts=[{id:'a',kind:'capacity',target:'s1',created:1,evidence:{percent:90},severity:'warning',condition_active:true,status:'open',options:{open_shelter:{id:'s5',name:'Reserve',meters:300}}}];
+ assert.ok(renderLayout(c).includes('data-command="open_shelter"'));
+ c.can=p=>p==='dashboard:read';assert.ok(!renderLayout(c).includes('data-command='));
+});
+test('critical alerts precede capacity preparation regardless of age',()=>{
+ const c=context(['dashboard:read'],{view:'dispatcher'});
+ c.state.alerts=[{id:'warning',kind:'capacity',target:'s1',created:100,evidence:{percent:90},severity:'warning',condition_active:true,status:'open'},{id:'red',kind:'capacity',target:'s2',created:1,evidence:{percent:96},severity:'critical',condition_active:true,status:'open'}];
+ const html=renderLayout(c);
+ assert.ok(html.includes('data-select="alert" data-id="red"'));
+ assert.ok(!html.includes('data-select="alert" data-id="warning"'));
+});
+test('citizen route remains visible when shelter drawer is open',()=>{
+ const c=context([],{route:{shelter_id:'s1',shelter_name:'Destination',minutes:3,meters:200}});
+ c.ui.panel='shelters';
+ assert.ok(renderLayout(c).includes('class="journey-card"'));
 });

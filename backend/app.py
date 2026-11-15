@@ -473,7 +473,7 @@ def create_app(db_path=None,demo=None):
         return r
 
     @application.post('/api/alerts/{id}/{action}')
-    def action(id:str,action:Literal['dispatch','open_shelter'],request:Request):
+    def action(id:str,action:Literal['dispatch','open_shelter','respond'],request:Request):
         u=require(request,'incident:act')
         try:return store.execute(id,action,u['id'])
         except ValueError as exc:raise HTTPException(409,str(exc))

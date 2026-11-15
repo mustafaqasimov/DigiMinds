@@ -164,15 +164,16 @@ class Store:
                 triggers.append(('radius:'+anchor['incident_id'],'sos',anchor['incident_id'],{'rule':'radius','lat':anchor['lat'],'lng':anchor['lng'],'count':len(members),'report_ids':sorted(ids),'types':sorted({r['type'] for r in members})}))
                 covered.append(ids)
         for s in self.objects('shelter'):
-            if s['status']=='open' and s['occupancy']/s['capacity']*100>cfg['critical_percent']:
+            if s['status']=='open' and s['occupancy']/s['capacity']*100>=cfg['reroute_percent']:
                 triggers.append(('capacity:'+s['id'],'capacity',s['id'],{'percent':s['occupancy']/s['capacity']*100,'count':s['occupancy'],'capacity':s['capacity']}))
         triggers.extend(seismic.events(self,now,cfg))
-        existing={a['key']:a for a in self.objects('alert') if a['status']!='resolved'}
+        existing={a['key']:a for a in self.objects('alert') if a['status']!='resolved' and a.get('condition_active')}
         active=set()
         for key,kind,target,evidence in triggers:
             active.add(key)
             a=dict(existing[key]) if key in existing else {'id':uid(),'key':key,'kind':kind,'target':target,'status':'open','created':now}
             a.update(evidence=evidence,condition_active=True,priority=evidence.get('priority',2))
+            a['severity']='warning' if kind=='capacity' and evidence['percent']<=cfg['critical_percent'] else 'critical'
             # Once dispatched, preserve the assignment target. Before dispatch,
             # follow the incident with the most reports in the rolling window.
             if a['status']=='open':a['target']=target
@@ -198,6 +199,10 @@ class Store:
             permissions=user.get('permissions',[]) if user else []
             if 'dashboard:read' in permissions:
                 result.update(teams=self.objects('team'),alerts=self.objects('alert'),reports=[dict(r) for r in self.db.execute('SELECT id,incident_id,type,lat,lng,zone,created,status,priority FROM reports ORDER BY created DESC LIMIT 200')],failures={'provider':cfg['provider_down'],'websocket':cfg['websocket_down']})
+                for alert in result['alerts']:
+                    alert['actions']={r['action']:r['resource'] for r in self.db.execute('SELECT action,resource FROM actions WHERE alert_id=?',(alert['id'],))}
+                    if alert.get('condition_active') and alert['kind']!='seismic':
+                        alert['options']=self.response_options(alert)
             elif 'assignment:read' in permissions:
                 result['teams']=[t for t in self.objects('team') if t['id']==user.get('team_id')]
                 assigned={t.get('incident_id') for t in result['teams']}
@@ -229,39 +234,59 @@ class Store:
                 routes.append({**path,'shelter_id':s['id'],'shelter_name':s['name'],'source':'local_graph','accessible':accessible_only,'accessibility_scope':'simulation' if accessible_only else None,'minutes':round(path['meters']/75,1),'snap_meters':round(snap),'geometry':[[lookup[n]['lng'],lookup[n]['lat']] for n in path['nodes']],'observed_at':s['observed_at'],'stale':self.clock()-s['observed_at']>300})
         return sorted(routes,key=lambda r:r['meters'])
 
+    def response_options(self, alert):
+        """Plan reachable resources without changing state; execute replans under lock."""
+        nodes=self.map['nodes']; roads=self.objects('road');cfg=self.config()
+        if alert['kind']=='capacity':
+            target=self.get('shelter',alert['target']);target_node=target['node'];needed=[]
+        else:
+            target=self.db.execute('SELECT * FROM incidents WHERE id=?',(alert['target'],)).fetchone()
+            target_node=min(nodes,key=lambda n:distance((target['lat'],target['lng']),(n['lat'],n['lng'])))['id']
+            needed=[target['type']]
+        options={}
+        for action,kind in (('dispatch','team'),('open_shelter','shelter')):
+            candidates=[]
+            for resource in self.objects(kind):
+                if kind=='team':
+                    if resource['status']!='available' or (needed and not any(x in resource['skills'] for x in needed)):continue
+                elif resource['status']!='standby' or resource['occupancy']/resource['capacity']*100>=cfg['reroute_percent']:continue
+                route=shortest_path(nodes,roads,target_node,resource['node'])
+                if route:candidates.append((route['meters'],resource['id'],resource))
+            if candidates:
+                meters,_,resource=min(candidates,key=lambda item:(item[0],item[1]))
+                options[action]={'id':resource['id'],'name':resource['name'],'meters':meters}
+            else:options[action]=None
+        return options
+
     def execute(self,alert_id,action,actor):
         with self.lock,self.db:
-            old=self.db.execute('SELECT * FROM actions WHERE alert_id=? AND action=?',(alert_id,action)).fetchone()
-            if old:return {**dict(old),'duplicate':True}
+            if action not in ('dispatch','open_shelter','respond'):raise ValueError('unknown_action')
+            requested=('dispatch','open_shelter') if action=='respond' else (action,)
+            done={r['action']:dict(r) for r in self.db.execute('SELECT * FROM actions WHERE alert_id=?',(alert_id,))}
+            missing=[name for name in requested if name not in done]
+            if not missing:
+                if action!='respond':return {**done[action],'duplicate':True}
+                return {'alert_id':alert_id,'action':action,'resources':{k:done[k]['resource'] for k in requested},'duplicate':True}
+            self.evaluate()
             a=self.get('alert',alert_id)
-            if not a or a['status']=='resolved':raise ValueError('alert_unavailable')
-            nodes=self.map['nodes'];roads=self.objects('road')
-            if a['kind']=='seismic':raise ValueError('not_actionable')
-            if a['kind']=='capacity':
-                target=self.get('shelter',a['target']);target_node=target['node'];needed=[]
-            else:
-                target=self.db.execute('SELECT * FROM incidents WHERE id=?',(a['target'],)).fetchone()
-                target_node=min(nodes,key=lambda n:distance((target['lat'],target['lng']),(n['lat'],n['lng'])))['id'];needed=a['evidence'].get('types',[])
-            if action=='dispatch':
-                candidates=[]
-                for team in self.objects('team'):
-                    if team['status']!='available' or (needed and not any(x in team['skills'] for x in needed)):continue
-                    route=shortest_path(nodes,roads,team['node'],target_node)
-                    if route:candidates.append((route['meters'],team['id'],team))
-                if not candidates:raise ValueError('no_available_team')
-                _,_,resource=min(candidates,key=lambda t:(t[0],t[1]))
-                resource.update(status='en_route',incident_id=a['target']);self.put('team',resource)
-                if a['kind']=='sos':self.db.execute("UPDATE incidents SET status='responding' WHERE id=?",(a['target'],))
-            elif action=='open_shelter':
-                candidates=[]
-                for s in self.objects('shelter'):
-                    if s['status']!='standby':continue
-                    route=shortest_path(nodes,roads,target_node,s['node'])
-                    if route:candidates.append((route['meters'],s['id'],s))
-                if not candidates:raise ValueError('no_reserve_shelter')
-                _,_,resource=min(candidates,key=lambda t:(t[0],t[1]))
-                resource.update(status='open',observed_at=self.clock());self.put('shelter',resource)
-            else:raise ValueError('unknown_action')
-            self.db.execute('INSERT INTO actions VALUES(?,?,?,?,?)',(alert_id,action,resource['id'],actor,self.clock()))
-            a['status']='responding';self.put('alert',a);self.audit(actor,action,resource['id'])
-            return {'alert_id':alert_id,'action':action,'resource':resource['id'],'duplicate':False}
+            if not a or a['status']=='resolved' or not a.get('condition_active'):raise ValueError('alert_unavailable')
+            if a['kind']=='seismic' or (a.get('severity')=='warning' and action!='open_shelter'):raise ValueError('not_actionable')
+            options=self.response_options(a)
+            # Validate both resources before any write: one confirmation is atomic.
+            for name in missing:
+                if not options[name]:raise ValueError('no_available_team' if name=='dispatch' else 'no_reserve_shelter')
+            for name in missing:
+                kind='team' if name=='dispatch' else 'shelter'
+                resource=self.get(kind,options[name]['id'])
+                if name=='dispatch':
+                    resource.update(status='en_route',incident_id=a['target'])
+                    if a['kind']=='sos':self.db.execute("UPDATE incidents SET status='responding' WHERE id=?",(a['target'],))
+                else:
+                    # Opening a site is not a fresh measurement of its occupancy.
+                    resource['status']='open'
+                self.put(kind,resource)
+                self.db.execute('INSERT INTO actions VALUES(?,?,?,?,?)',(alert_id,name,resource['id'],actor,self.clock()))
+                self.audit(actor,name,resource['id']);done[name]={'resource':resource['id']}
+            a['status']='responding';self.put('alert',a)
+            if action=='respond':return {'alert_id':alert_id,'action':action,'resources':{k:done[k]['resource'] for k in requested},'duplicate':False}
+            return {'alert_id':alert_id,'action':action,'resource':done[action]['resource'],'duplicate':False}

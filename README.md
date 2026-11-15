@@ -39,6 +39,14 @@ Demo rejimində **Dispetçer → demo hesab seçin**. Hesablar: `demo-dispatcher
 
 ## Hazır funksiyalar
 
+**Tələb yoxlaması və 90% doluluq:** [Uyğunluq cədvəli və nümayiş addımları](docs/requirements-audit.md).
+90%-də vətəndaş avtomatik başqa uyğun məntəqəyə yönləndirilir, dispetçerə sarı xəbərdarlıq və
+ən yaxın yolu açıq ehtiyat məntəqəni bir kliklə açmaq imkanı verilir. 95%-dən yuxarı və ya
+5 dəqiqədə eyni zona/500 m radiusda ən az 4 fərqli SOS olduqda qırmızı həyəcan yaranır.
+**“Briqada göndər və məntəqə aç”** hər iki əməliyyatı bir təsdiqlə icra edir.
+Ehtiyat məntəqə operator təsdiqi ilə açılır; marşrut yenilənməsi avtomatikdir.
+İcra nəticələri paneldə göstərilir, təkrar klik əlavə resurs ayırmır.
+
 **Zəlzələ təlimi:** eyni otağa qoşulan cihazlarda sınaq mesajı ilə həyəcan ekranı
 və səs, qəbul göstəriciləri və ümumi dayandırma. [Təqdimat təlimatı və Google inteqrasiyasının sərhədləri](docs/earthquake-drill.md).
 
