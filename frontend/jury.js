@@ -1,4 +1,8 @@
 import {createEarthquakeDemo} from './earthquake.js';
+import {productHeader} from './product-ui.js';
+import {loadFeatureStyle} from './ui-assets.js';
+loadFeatureStyle('./product-theme.css');
+loadFeatureStyle('./jury.css');
 const $=selector=>document.querySelector(selector);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const deviceIcon='<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 18h4M10 5h4"/></svg>';
@@ -14,7 +18,7 @@ function error(err){$('#jury-error').textContent=err.status===429?'Çox tez gön
 function uuid(){const bytes=crypto.getRandomValues(new Uint8Array(16));bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;const h=[...bytes].map(x=>x.toString(16).padStart(2,'0')).join('');return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;}
 function allowed(){return health?.demo&&user?.permissions?.includes('demo:write');}
 function frame(){
- $('#jury').innerHTML=`<header class="jury-header"><a class="jury-brand" href="/"><span class="jury-mark">D</span>DIGIMINDS</a><span class="jury-tag">TƏLİM REJİMİ</span><a class="jury-map" href="/workspace.html">Xəritəyə qayıt</a></header>
+ $('#jury').innerHTML=`${productHeader({active:'demo'})}
  <div class="jury-body"><div class="jury-heading"><p class="jury-eyebrow">${remote?'TELEFON PULTU':'CANLI TƏQDİMAT'}</p><h1>${remote?'Bir mesaj göndər.<br>Siqnalı başlat.':'Bir mesaj.<br>Vaxtında xəbərdarlıq.'}</h1><p>${remote?'Buradan göndərdiyiniz sınaq mesajı eyni otaqdakı hazır cihazlarda görünəcək və “dut-dut” siqnalını başladacaq.':'Telefondan bir mesaj göndərin. Noutbukda və qoşulmuş cihazlarda xəbərdarlığın və səsin başladığını göstərin.'}</p></div>
  ${remote?remotePanel():screenPanel()}<p id="jury-error" role="alert"></p><footer class="jury-footer"><span>Google xəbərdarlığına qoşulmayıb. Real hadisə deyil.</span><span>DIGITAL CHALLENGE · 2026</span></footer></div>`;
 }

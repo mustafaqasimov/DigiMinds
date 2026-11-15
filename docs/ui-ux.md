@@ -44,3 +44,16 @@ The root route is now a separately authored presentation page following the supp
 The workspace moved to `/workspace.html`. Its synthetic SVG basemap was removed and replaced with vendored Leaflet plus OpenStreetMap raster imagery and a bundled real OSM vector extract. The map DOM and viewport survive live state renders. Existing business workflows and training graph are preserved; see `map-data.md` for the distinction between real geography and simulated routing.
 
 Verification: JS syntax, existing UI tests, and focused desktop browser checks of the homepage, section navigation, real map display and offline-layer toggle. No extended load or Windows run was performed for this visual revision.
+
+
+## Shared visual language for profiles and jury alerts
+
+The safety profile, jury receiver, phone console and alert dialogs now follow the homepage's navy (`#182c39`), orange (`#ff7900`), white surfaces, Arial typography and rounded controls. A shared `product-theme.css` defines the palette and navigation, and `product-ui.js` renders the same DigiMinds mark and Map / Safety profile / Jury demo links. The existing citizen and dispatcher map layouts remain intact.
+
+Profile editing, consent, delivery receipts, audio activation and remote stop retain their previous behavior. Text and control sizes were increased in the phone console; the profile's back button wraps below the title on narrow screens. Revisioned feature styles load their shared theme explicitly, and the offline shell can match versioned static asset requests against its cached files.
+
+Validation: all 12 JavaScript checks pass, including offline module coverage; JS syntax and whitespace checks pass. Browser checks covered the profile editor, the redesigned alarm panel, message delivery/audio-start and remote stop. At 337 CSS pixels of usable width, both the profile and authenticated phone console have no horizontal document overflow. This is browser zoom testing, not physical phone testing. Backend code was not changed in this visual update.
+
+![Safety profile with the shared header](citizen-profile.jpg)
+
+![Jury receiver with the shared palette](jury-presentation.jpg)

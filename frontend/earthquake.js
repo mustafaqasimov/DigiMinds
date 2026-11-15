@@ -35,6 +35,7 @@ class AlarmSound {
 }
 
 export function createEarthquakeDemo({api,onSOS,beforeOpen,initialRoom='DIGI26',initialLabel='',onStatus=()=>{}}) {
+ loadFeatureStyle('./product-theme.css');
  loadFeatureStyle('./earthquake.css');
  let ctx={user:null,enabled:false,lang:'az'},member=null,socket=null,retryAt=0,lastPacket=0,lastBeat=0,busy=false,ticking=false;
  let active=null,deadline=0,alarmTimer=null,muted=false,playing=false,status=null,room=initialRoom,draftKey=null,packet=null;
@@ -105,7 +106,7 @@ export function createEarthquakeDemo({api,onSOS,beforeOpen,initialRoom='DIGI26',
  }
  function renderControl(){
   const roomValue=member?.room||room;
-  control.innerHTML=`<div class="quake-header"><span class="quake-brand">${glyph} DigiMinds <small>ALERT LINK</small></span><button type="button" class="quake-close" data-q="close" aria-label="${t('close')}">×</button></div>
+  control.innerHTML=`<div class="quake-header"><span class="quake-brand"><span class="dm-brand-mark" aria-hidden="true"></span>DIGIMINDS <small>ALERT LINK</small></span><button type="button" class="quake-close" data-q="close" aria-label="${t('close')}">×</button></div>
    <div class="quake-intro"><span class="quake-badge">${t('badge')}</span><h2 id="quake-heading">${t('title')}</h2><p>${t('intro')}</p></div>
    <div class="quake-steps">${['step1','step2','step3'].map((key,i)=>`<span><b>${i+1}</b>${t(key)}</span>`).join('')}</div>
    <div class="quake-columns"><section class="quake-setup"><form id="quake-join"><label for="quake-room">${t('room')}</label><input id="quake-room" name="room" pattern="[A-Za-z0-9-]{3,16}" maxlength="16" required value="${escape(roomValue)}" ${member?'disabled':''} autocomplete="off" spellcheck="false"><label for="quake-device">${t('device')}</label><input id="quake-device" name="label" maxlength="40" required value="${escape(member?.label||initialLabel||t('deviceDefault'))}" ${member?'disabled':''}>${member?`<div class="quake-ready" id="quake-ready"></div><div class="quake-button-pair"><button type="button" class="quake-secondary" data-q="enable">${t('tone')}</button><button type="button" class="quake-link" data-q="leave">${t('leave')}</button></div>`:`<button type="submit" class="quake-primary">${glyph}${t('join')}</button>`}</form><p class="quake-note">${t('note')}</p><div class="quake-room-stats"><div><strong id="quake-connected">0</strong><span>${t('connected')}</span></div><div><strong id="quake-audio-ready">0</strong><span>${t('soundReady')}</span></div></div><div class="quake-transport" id="quake-transport"></div></section>

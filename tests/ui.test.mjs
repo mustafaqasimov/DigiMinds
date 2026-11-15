@@ -39,6 +39,6 @@ test('search escapes arbitrary input and produces a distinct empty state',()=>{
 });
 test('offline shell includes every module used by the redesigned workspace',()=>{
  const sw=fs.readFileSync(new URL('../frontend/sw.js',import.meta.url),'utf8');
- for(const file of ['ui.js','ui-i18n.js','map.js','fonts.css'])assert.ok(sw.includes(`'/${file}'`));
+ for(const file of ['ui.js','ui-i18n.js','map.js','fonts.css','product-theme.css','product-ui.js'])assert.ok(sw.includes(`'/${file}'`));
  for(const locale of ['az','en','ru'])assert.deepEqual(Object.keys(uiTranslations[locale]).sort(),Object.keys(uiTranslations.en).sort());
 });
