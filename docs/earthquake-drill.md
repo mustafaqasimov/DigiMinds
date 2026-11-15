@@ -47,6 +47,11 @@ unikal fiziki insanların və ya telefonların təsdiqlənmiş sayı deyil.
 
 ## Texniki sərhədlər
 
+- Siren istifadəçinin verdiyi videonun 00:04–00:16 hissəsindən çıxarılıb və
+  `frontend/audio/sos-alarm.mp3` kimi tətbiqlə saxlanır. YouTube bağlantısı lazım
+  deyil. İki saniyəlik sakit yoxlama səsi və 15/30/60 saniyəlik təkrar səsləndirmə
+  eyni fayldan istifadə edir. Audio faylı alınmasa köhnə ton ehtiyat kimi işləyir.
+  Service Worker quraşdırıldıqdan sonra fayl oflayn keşdən də açılır.
 - Yalnız `DEMO_MODE=1`; digər rejimdə bütün drill API-ləri 404 qaytarır.
 - Mesaj göndərmə/dayandırma üçün mövcud `demo:write` icazəsi tələb olunur.
 - Autentifikasiyalı `/ws/drills` mesajı otağa görə çatdırır. Kanal kəsilərsə açıq

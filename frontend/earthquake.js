@@ -1,38 +1,10 @@
 import {quakeMessages} from './earthquake-i18n.js';
 import {alarmLifetime,rememberEvent,normalizeRoom} from './earthquake-state.js';
 import {loadFeatureStyle} from './ui-assets.js';
-import {pulseSchedule} from './earthquake-sound.js';
+import {AlarmSound} from './earthquake-sound.js';
 
 const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const glyph=`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 16V9a9 9 0 0 1 18 0v7M1 16h6v5H1zM17 16h6v5h-6zM8 12h2l2-5 2 10 2-5h2"/></svg>`;
-
-class AlarmSound {
- constructor(){this.context=null;this.nodes=[];}
- async unlock(){
-  const Audio=window.AudioContext||window.webkitAudioContext;
-  if(!Audio)return false;
-  this.context??=new Audio();
-  try{await this.context.resume();return this.ready;}catch{return false;}
- }
- get ready(){return this.context?.state==='running';}
- stop(){for(const node of this.nodes){try{node.stop();}catch{}try{node.disconnect();}catch{}}this.nodes=[];try{navigator.vibrate?.(0);}catch{}}
- play(seconds=30,preview=false){
-  this.stop();if(!this.ready)return false;
-  const ctx=this.context,start=ctx.currentTime,end=start+Math.min(60,seconds);
-  if(end<=start)return false;
-  const gain=ctx.createGain();gain.gain.setValueAtTime(0,start);
-  for(const pulse of pulseSchedule(end-start)){
-   const at=start+pulse.start,until=start+pulse.end,fade=Math.min(.012,(until-at)/3);
-   gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(preview ? .055 : .16,at+fade);
-   gain.gain.setValueAtTime(preview ? .055 : .16,until-fade);gain.gain.linearRampToValueAtTime(0,until);
-  }
-  const osc=ctx.createOscillator();osc.type='sine';osc.frequency.value=880;
-  osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(end);
-  osc.onended=()=>{gain.disconnect();osc.disconnect();};this.nodes=[osc,gain];
-  if(!preview)try{navigator.vibrate?.([300,150,300,150,300]);}catch{}
-  return true;
- }
-}
 
 export function createEarthquakeDemo({api,onSOS,beforeOpen,initialRoom='DIGI26',initialLabel='',onStatus=()=>{}}) {
  loadFeatureStyle('./product-theme.css');
@@ -150,7 +122,7 @@ export function createEarthquakeDemo({api,onSOS,beforeOpen,initialRoom='DIGI26',
    if(form.id==='quake-join'){
     await sound.unlock();room=normalizeRoom(data.get('room'));member={room,label:String(data.get('label')).trim()||t('deviceDefault')};
     try{await enroll();}catch(err){member=null;throw err;}
-    renderControl();if(!active)sound.play(.8,true);await tick();
+    renderControl();if(!active)sound.play(2,true);await tick();
    }else if(form.id==='quake-send'){
     if(!member)throw Error('join_first');
     // Reuse this key after a network timeout; never create two drills on retry.
@@ -167,7 +139,7 @@ export function createEarthquakeDemo({api,onSOS,beforeOpen,initialRoom='DIGI26',
    if(action==='enable'||action==='unblock'){
     await sound.unlock();
     if(action==='unblock'&&active){muted=false;playing=sound.play(Math.max(0,(deadline-performance.now())/1000));if(playing)void receipt('audio_started');}
-    else if(!active)sound.play(.8,true);
+    else if(!active)sound.play(2,true);
     if(member)await enroll();refreshIndicators();refreshAlert();
    }
    if(action==='leave'){

@@ -1,4 +1,4 @@
-# Jüri qarşısında: telefondan mesaj → noutbukda “dut-dut”
+# Jüri qarşısında: telefondan mesaj → noutbukda siren
 
 ## Hazırlıq — Windows
 
@@ -13,7 +13,7 @@
    Firewall-u tam söndürməyin. Məktəb/zal Wi-Fi-ında cihazlararası əlaqə bağlıdırsa,
    şəxsi hotspot istifadə edin.
 5. Noutbukda açılan səhifədə **Ekranı hazırla → Qoşul və səsi aktivləşdir** basın.
-   İki qısa “dut-dut” yoxlama səsi gəlməlidir. Səs səviyyəsini uyğunlaşdırın.
+   İki saniyəlik siren yoxlama səsi gəlməlidir. Səs səviyyəsini uyğunlaşdırın.
 6. **Bağla** basın; noutbuk hazır vəziyyətdə mesajı gözləsin. Səhifəni bağlamayın.
 7. Təqdimat səhifəsindəki **Telefon pultu** ünvanını telefonda açın. Terminalda da
    `TELEFON PULTU: http://.../remote.html?room=DIGI26` kimi göstərilir.
@@ -68,7 +68,7 @@ Pultdakı **Bütün cihazlarda dayandır** düyməsini basın. Təlim səsi seç
 ## Təqdimatdan əvvəl bir dəfə yoxlayın
 
 - Telefonda pult açılır, otaq kodları eynidir, ən azı 1 bağlı cihaz görünür.
-- Noutbukda iki yoxlama səsi eşidilir; səssiz rejim/çıxış cihazı düzgün seçilib.
+- Noutbukda siren yoxlama səsi eşidilir; səssiz rejim/çıxış cihazı düzgün seçilib.
 - Test mesajı yazıldıqdan sonra noutbukda həmin mətn görünür.
 - Səs susdurulur, təkrar mesajda yenidən başlayır, ümumi dayandırma işləyir.
 - Proyektor HDMI ilə qoşulubsa, səsin hansı cihazdan çıxdığını yoxlayın.
