@@ -34,7 +34,7 @@ try {
  await d.getByRole('button',{name:'Rol dəyiş',exact:true}).click();
  await d.locator('[data-login="dispatcher"]').click();
  await d.locator('[data-panel="shelters"]').first().click();
- await d.locator('[data-select="shelter"][data-id="s1"]').click();
+ await d.locator('.shelter-row[data-select="shelter"][data-id="s1"]').click();
  await d.locator('#occupancy-count').fill('360');
  await d.locator('#occupancy-form button[type="submit"]').click();
  await d.locator('.alert-card.is-warning').waitFor();
